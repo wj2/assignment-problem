@@ -57,6 +57,8 @@ def create_parser():
                         'once -- does not do this by default')
     parser.add_argument('--init', default='random', type=str,
                         help='initial value for model fitter')
+    parser.add_argument('--init_eps', default=10e-4, type=float,
+                        help='initial value offset epsilon')
     return parser
 
 if __name__ == '__main__':
@@ -64,10 +66,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
     os.chdir(args.runfolder)
 
+    if args.init != 'random':
+        init_stim = ({'stims':np.linspace(-args.init_eps, args.init_eps,
+                                          args.n_stims)},)*args.chains
+    else:
+        init_stim = args.init
+
     control = {'adapt_delta':args.adapt_delta,
                'max_treedepth':args.max_treedepth}
     stan_params = {'iter':args.length, 'control':control, 'chains':args.chains,
-                   'init':args.init}
+                   'init':init_stim}
     if args.not_parallel:
         n_jobs = 1
     else:

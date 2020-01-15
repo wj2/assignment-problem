@@ -2,6 +2,8 @@
 import numpy as np
 import itertools as it
 import scipy.stats as sts 
+import pickle
+import pystan as ps
 
 import general.rf_models as rfm
 import mixedselectivity_theory.nms_continuous as nmc
@@ -21,6 +23,38 @@ def generate_noisy_samples(stims, cents, wids, scales, cov, n_samps=100):
         noisy_resp = resp + noise
         resp_set[i] = noisy_resp
     return resp_set, func
+
+gt_model = 'assignment/stan_models/gaussian_tuning.pkl'
+def estimate_posterior_series(data, dists, rf_params, model_path=gt_model,
+                              verbose=False, **stan_params):
+    collection = {}
+    center_pt = ((rf_params['cents'][-1] - rf_params['cents'][0])/2
+                 + rf_params['cents'][0])
+    for i, d in enumerate(dists):
+        stim = np.zeros((1, 2))
+        stim[0, 0] = center_pt - d/2
+        stim[0, 1] = center_pt + d/2
+        out = generate_noisy_samples(stim, rf_params['cents'],
+                                     rf_params['wids'], rf_params['scales'],
+                                     rf_params['cov_mat'], n_samps=data['N'])
+        resps = out[0][0]
+        if verbose:
+            print('fitting model {}/{}'.format(i + 1, len(resps)))
+        run_dict = {}
+        run_dict.update(data)
+        run_dict.update(rf_params)
+        run_dict['samps'] = resps
+        fit = estimate_posterior_stan(run_dict, model_path=model_path,
+                                      **stan_params)
+        run_dict['stim'] = stim
+        diags = ps.diagnostics.check_hmc_diagnostics(fit)
+        collection[d] = (fit, run_dict, diags)
+    return collection
+
+def estimate_posterior_stan(data, model_path=gt_model, **stan_params):
+    sm = pickle.load(open(model_path, 'rb'))
+    fit = sm.sampling(data=data, **stan_params)
+    return fit
 
 def generate_1d_rfs(space_size, rf_spacing, rf_size, mult=1):
     rf_cents = np.arange(0, space_size + rf_spacing, rf_spacing)

@@ -39,7 +39,7 @@ def estimate_posterior_series(data, dists, rf_params, model_path=gt_model,
                                      rf_params['cov_mat'], n_samps=data['N'])
         resps = out[0][0]
         if verbose:
-            print('fitting model {}/{}'.format(i + 1, len(resps)))
+            print('fitting model {}/{}'.format(i + 1, len(dists)))
         run_dict = {}
         run_dict.update(data)
         run_dict.update(rf_params)

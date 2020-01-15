@@ -55,6 +55,8 @@ def create_parser():
     parser.add_argument('--full_data', default=False, action='store_true',
                         help='collapse data across days and fit it all at '
                         'once -- does not do this by default')
+    parser.add_argument('--init', default='random', type=str,
+                        help='initial value for model fitter')
     return parser
 
 if __name__ == '__main__':
@@ -64,7 +66,8 @@ if __name__ == '__main__':
 
     control = {'adapt_delta':args.adapt_delta,
                'max_treedepth':args.max_treedepth}
-    stan_params = {'iter':args.length, 'control':control, 'chains':args.chains}
+    stan_params = {'iter':args.length, 'control':control, 'chains':args.chains,
+                   'init':args.init}
     if args.not_parallel:
         n_jobs = 1
     else:

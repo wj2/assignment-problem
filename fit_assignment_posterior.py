@@ -18,7 +18,7 @@ def create_parser():
                         help='stimulus space size')
     parser.add_argument('-t', '--n_stims', default=2, type=int,
                         help='number of stimuli in the scene')
-    parser.add_argument('-n', '--n_samps', default=200, type=int,
+    parser.add_argument('-n', '--n_samps', default=1, type=int,
                         help='number of samples for each scene')
     parser.add_argument('--rf_scale', default=1, type=float,
                         help='peak RF response')
@@ -26,6 +26,8 @@ def create_parser():
                         help='RF width')
     parser.add_argument('--noise_var', default=.2, type=float,
                         help='neuron response variance')
+    parser.add_argument('--no_noise', default=False, action='store_true',
+                        help='give samples without any noise')
     parser.add_argument('--first_stim', default=5, type=float,
                         help='closest distance between stimuli')
     parser.add_argument('--end_stim', default=10, type=float,
@@ -94,6 +96,7 @@ if __name__ == '__main__':
     n_scenes = args.n_scenes
     buff = args.buffer
     model_path = args.model_path
+    no_noise = args.no_noise
 
     cents = np.linspace(-size/2, size/2, n_neurs)
     scales = np.ones(n_neurs)*mult_scale
@@ -108,7 +111,8 @@ if __name__ == '__main__':
 
     fits = ce.estimate_posterior_series(data, dists, rf_params,
                                         model_path=model_path,
-                                        verbose=True, **stan_params)
+                                        verbose=True, no_samp_noise=no_noise,
+                                        **stan_params)
 
     fit_models = su.store_models(fits)
     dt = str(datetime.datetime.now()).replace(' ', '-')

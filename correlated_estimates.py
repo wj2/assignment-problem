@@ -4,12 +4,15 @@ import itertools as it
 import scipy.stats as sts 
 import pickle
 import pystan as ps
+import os
+import re
 
 import general.rf_models as rfm
 import mixedselectivity_theory.nms_continuous as nmc
 
 
-def generate_noisy_samples(stims, cents, wids, scales, cov, n_samps=100):
+def generate_noisy_samples(stims, cents, wids, scales, cov, n_samps=100,
+                           no_samp_noise=False):
     func, _ = rfm.make_gaussian_vector_rf(cents, wids, scales, 0)
     resp_set = np.zeros((stims.shape[0], n_samps, cov.shape[0]))
     for i, stim_set in enumerate(stims):
@@ -18,15 +21,19 @@ def generate_noisy_samples(stims, cents, wids, scales, cov, n_samps=100):
                 resp = func(stim)
             else:
                 resp = resp + func(stim)
-        noise = np.random.multivariate_normal(np.zeros(cov.shape[0]),
-                                              cov, n_samps)
+        if not no_samp_noise:
+            noise = np.random.multivariate_normal(np.zeros(cov.shape[0]),
+                                                  cov, n_samps)
+        else:
+            noise = np.zeros((n_samps, cov.shape[0]))
         noisy_resp = resp + noise
         resp_set[i] = noisy_resp
     return resp_set, func
 
 gt_model = 'assignment/stan_models/gaussian_tuning.pkl'
 def estimate_posterior_series(data, dists, rf_params, model_path=gt_model,
-                              verbose=False, **stan_params):
+                              verbose=False, no_samp_noise=False,
+                              **stan_params):
     collection = {}
     center_pt = ((rf_params['cents'][-1] - rf_params['cents'][0])/2
                  + rf_params['cents'][0])
@@ -36,7 +43,8 @@ def estimate_posterior_series(data, dists, rf_params, model_path=gt_model,
         stim[0, 1] = center_pt + d/2
         out = generate_noisy_samples(stim, rf_params['cents'],
                                      rf_params['wids'], rf_params['scales'],
-                                     rf_params['cov_mat'], n_samps=data['N'])
+                                     rf_params['cov_mat'], n_samps=data['N'],
+                                     no_samp_noise=no_samp_noise)
         resps = out[0][0]
         if verbose:
             print('fitting model {}/{}'.format(i + 1, len(dists)))
@@ -50,6 +58,35 @@ def estimate_posterior_series(data, dists, rf_params, model_path=gt_model,
         diags = ps.diagnostics.check_hmc_diagnostics(fit)
         collection[d] = (fit, run_dict, diags)
     return collection
+
+def load_stan_fits(pattern, filepath):
+    fls = os.listdir(filepath)
+    fls = filter(lambda x: re.match(pattern, x) is not None, fls)
+    all_models = {}
+    all_meta = {}
+    for f in fls:
+        path = os.path.join(filepath, f)
+        f_data = pickle.load(open(path, 'rb'))
+        f_models = f_data.pop('models')
+        all_meta[f] = f_data
+        all_models.update(f_models)
+    return all_models, all_meta
+
+def get_posterior_stats(fits, sort=True):
+    dists = []
+    cov_mats = []
+    for i, item in enumerate(fits.items()):
+        k, (fit, run_dict, diags) = item
+        if np.all(list(diags.values())):
+            dists.append(k)
+            cov_mats.append(np.cov(fit.samples['stims'], rowvar=False))
+        else:
+            print('{} failed diagnostics'.format(k))
+    s_covs = np.stack(cov_mats, axis=0)
+    sort_inds = np.argsort(dists)
+    s_dists = np.array(dists)[sort_inds]
+    ss_covs = s_covs[sort_inds]
+    return s_dists, ss_covs
 
 def estimate_posterior_stan(data, model_path=gt_model, **stan_params):
     sm = pickle.load(open(model_path, 'rb'))

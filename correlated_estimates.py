@@ -163,8 +163,12 @@ def distance_var(pt1, pt2, cov, n=5000):
     dist_var = np.var(dists)
     return dist_var
 
-def make_distance_cov_func(tau, axis=0):
-    return lambda x, y: np.exp(-((x[axis] - y[axis])**2)/tau)
+def make_distance_cov_func(tau, axis=None):
+    if axis is None:
+        f = lambda x, y: np.exp(-np.sum(((x - y)**2))/tau)
+    else:
+        f = lambda x, y: np.exp(-((x[axis] - y[axis])**2)/tau) 
+    return f
 
 def make_pair_covs(dtrs, pt, dists, corr_scale, var_scale, distance_cov=None,
                    cents=None, info_lim_scale=20):

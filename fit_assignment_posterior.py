@@ -40,6 +40,10 @@ def create_parser():
                         help='multiplier for noise variance')
     parser.add_argument('--covariance_func', default='identity', type=str,
                         help='function to use for covariance matrix')
+    parser.add_argument('--covariance_func_params', type=float, nargs='+',
+                        help='numerical parameters for the covariance function')
+    parser.add_argument('--covariance_scale', type=float, default=0,
+                        help='scaling for covariance entries')
     parser.add_argument('--model_path', default=ce.gt_model,
                         help='path to stan model pkl file')
     parser.add_argument('--not_parallel', default=False, action='store_true',
@@ -105,7 +109,16 @@ if __name__ == '__main__':
     cents = np.linspace(-size/2, size/2, n_neurs)
     scales = np.ones(n_neurs)*mult_scale
     wids = np.ones(n_neurs)*mult_wid
-    cov = np.identity(n_neurs)*noise_var
+
+    cov_func_dict = {'identity':None, 'distance':ce.make_distance_cov_func}
+    cov_func = cov_func_dict[args.covariance_func]
+    cov_scale = args.covariance_scale
+    if cov_func is not None:
+        cov_func = cov_func(*args.covariance_func_params)
+        if cov_scale == 0:
+            cov_scale = 1
+    cov = ce.make_covariance_matrix(cents, noise_var, cov_scale,
+                                    corr_func=cov_func)
     
     dists = np.linspace(stim_beg, stim_end, n_scenes)
 

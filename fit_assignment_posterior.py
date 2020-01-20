@@ -118,7 +118,7 @@ if __name__ == '__main__':
         if cov_scale == 0:
             cov_scale = 1
     cov = ce.make_covariance_matrix(cents, noise_var, cov_scale,
-                                    corr_func=cov_func)
+                                    corr_func=cov_func, inv=False)
     
     dists = np.linspace(stim_beg, stim_end, n_scenes)
 

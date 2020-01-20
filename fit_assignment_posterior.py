@@ -36,8 +36,10 @@ def create_parser():
                         help='number of scenes between two distances')
     parser.add_argument('--buffer', default=20, type=float,
                         help='buffer away from edges of stim space')
-    parser.add_argument('--noise_mult', default=1, type=int,
+    parser.add_argument('--noise_mult', default=1, type=float,
                         help='multiplier for noise variance')
+    parser.add_argument('--covariance_func', default='identity', type=str,
+                        help='function to use for covariance matrix')
     parser.add_argument('--model_path', default=ce.gt_model,
                         help='path to stan model pkl file')
     parser.add_argument('--not_parallel', default=False, action='store_true',

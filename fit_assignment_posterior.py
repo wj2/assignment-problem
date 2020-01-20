@@ -36,6 +36,8 @@ def create_parser():
                         help='number of scenes between two distances')
     parser.add_argument('--buffer', default=20, type=float,
                         help='buffer away from edges of stim space')
+    parser.add_argument('--noise_mult', default=1, type=int,
+                        help='multiplier for noise variance')
     parser.add_argument('--model_path', default=ce.gt_model,
                         help='path to stan model pkl file')
     parser.add_argument('--not_parallel', default=False, action='store_true',
@@ -90,7 +92,7 @@ if __name__ == '__main__':
     n_samps = args.n_samps
     mult_scale = args.rf_scale
     mult_wid = args.rf_width
-    noise_var = args.noise_var
+    noise_var = args.noise_var*args.noise_mult
     stim_beg = args.first_stim
     stim_end = args.end_stim
     n_scenes = args.n_scenes

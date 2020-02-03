@@ -72,11 +72,12 @@ def load_stan_fits(pattern, filepath):
         all_models.update(f_models)
     return all_models, all_meta
 
-def get_posterior_stats(fits, sort=True):
+def get_posterior_stats(fits, sort=True, skip_diags=()):
     dists = []
     cov_mats = []
     for i, item in enumerate(fits.items()):
         k, (fit, run_dict, diags) = item
+        [diags.pop(key) for key in skip_diags]
         if np.all(list(diags.values())):
             dists.append(k)
             cov_mats.append(np.cov(fit.samples['stims'], rowvar=False))

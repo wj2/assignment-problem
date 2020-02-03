@@ -114,14 +114,14 @@ model {
     n_stim = num_stim[t];
 
     ae_prob = get_ae_probability(dist_bits[subj], n_stim, N, stim_spacing);
-    local_d = get_distortion(report_bits[subj], n_stim);
+    local_d = mech_dist[subj] + get_distortion(report_bits[subj], n_stim);
 
     err = report_err[t];
 
-    lps[1] = log(1 - ae_prob) + normal_lpdf(err | 0, local_d + mech_dist);
+    lps[1] = log(1 - ae_prob) + normal_lpdf(err | 0, local_d);
     for (i in 2:n_stim) {
       lps[i] = (log(ae_prob/(n_stim - 1))
-		+ normal_lpdf(err | stim_locs[t, i], local_d + mech_dist));
+		+ normal_lpdf(err | stim_locs[t, i], local_d));
     }
     target += log_sum_exp(lps[:n_stim]);
   }

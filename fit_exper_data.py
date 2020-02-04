@@ -59,9 +59,9 @@ if __name__ == '__main__':
     dbvm = rbvm
     dbvv = rbvv
     mdmm = 1
-    mdmv = 10
-    mdvm = 10
-    mdvv = 100
+    mdmv = 5
+    mdvm = 5
+    mdvv = 10
 
     prior_dict = {'report_bits_mean_mean':rbmm, 'report_bits_mean_var':rbmv,
                   'report_bits_var_mean':rbvm, 'report_bits_var_var':rbvv,

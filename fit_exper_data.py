@@ -13,7 +13,7 @@ import general.utility as u
 def create_parser():
     parser = argparse.ArgumentParser(description='fit mixture model to recall'
                                      ' task experimental data using Stan')
-    parser.add_argument('--data_folder', type=str, default='../data/bays_set/',
+    parser.add_argument('--data_folder', type=str, default='../data/bays_data/',
                         help='where to look for the data')
     parser.add_argument('experiments', type=int, nargs='+',
                         help='experiment numbers to fit')

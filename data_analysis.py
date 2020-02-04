@@ -108,10 +108,12 @@ def format_experiments_stan(data, stim_spacing=None, stim_spacing_all=np.pi/4,
                 max_n = np.max(s[num_field])
             stim_locs = np.zeros((len(errs), max_n))
             stim_errs = np.zeros((len(errs), max_n))
+            stim_errs[:, 0] = errs
             for j, t in enumerate(s[pos_field][0]):
                 curr_n = s[num_field][0, j]
                 stim_locs[j, :curr_n] = t
-                stim_errs[j, :curr_n] = s[stim_err_field][0, j]
+                if curr_n > 1:
+                    stim_errs[j, 1:curr_n] = s[stim_err_field][0, j][:, 0]
             if i == 0:
                 all_errs = errs
                 all_stim_locs = stim_locs

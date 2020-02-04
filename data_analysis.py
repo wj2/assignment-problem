@@ -89,7 +89,8 @@ def infer_relative_positions(data, err_field='error_vec',
 
 def format_experiments_stan(data, stim_spacing=None, stim_spacing_all=np.pi/4,
                             err_field='error_vec', num_field='N',
-                            pos_field='rel_dists'):
+                            pos_field='rel_dists',
+                            stim_err_field='dist_error_vec'):
     stan_dicts = {}
     for k in data.keys():
         exper = data[k]
@@ -106,22 +107,27 @@ def format_experiments_stan(data, stim_spacing=None, stim_spacing_all=np.pi/4,
             if i == 0:
                 max_n = np.max(s[num_field])
             stim_locs = np.zeros((len(errs), max_n))
+            stim_errs = np.zeros((len(errs), max_n))
             for j, t in enumerate(s[pos_field][0]):
                 curr_n = s[num_field][0, j]
                 stim_locs[j, :curr_n] = t
+                stim_errs[j, :curr_n] = s[stim_err_field][0, j]
             if i == 0:
                 all_errs = errs
                 all_stim_locs = stim_locs
                 all_sub_ind = sub_ind
                 all_n_stim = n_stim
+                all_stim_errs = stim_errs
             else:
                 all_errs = np.concatenate((all_errs, errs))
                 all_stim_locs = np.concatenate((all_stim_locs, stim_locs))
                 all_sub_ind = np.concatenate((all_sub_ind, sub_ind))
                 all_n_stim = np.concatenate((all_n_stim, n_stim))
+                all_stim_errs = np.concatenate((all_stim_errs, stim_errs))
         sd['report_err'] = all_errs
         sd['num_stim'] = all_n_stim
         sd['stim_locs'] = all_stim_locs
+        sd['stim_errs'] = all_stim_errs
         sd['subj_id'] = all_sub_ind.astype(int)
         sd['S'] = n_subs
         sd['N'] = np.max(all_n_stim)

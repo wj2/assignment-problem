@@ -56,6 +56,7 @@ data {
   int<lower=1, upper=N> num_stim[T]; // number of stimuli on each trial
   matrix[T, N] stim_locs; // relative locations of stimuli in report space
   int<lower=1, upper=S> subj_id[T];
+  matrix[T, N] stim_errs; // errors relative to each stimulus 
 }
 
 parameters {
@@ -121,7 +122,7 @@ model {
     lps[1] = log(1 - ae_prob) + normal_lpdf(err | 0, local_d);
     for (i in 2:n_stim) {
       lps[i] = (log(ae_prob/(n_stim - 1))
-		+ normal_lpdf(err | stim_locs[t, i], local_d));
+		+ normal_lpdf(stim_errs[t, i] | 0, local_d));
     }
     target += log_sum_exp(lps[:n_stim]);
   }

@@ -31,6 +31,8 @@ def create_parser():
                         help='adapt_delta value to use')
     parser.add_argument('--max_treedepth', type=int, default=10,
                         help='maximum tree depth to use')
+    parser.add_argument('--model_path', default=da.assignment_model,
+                        help='path to pkld stan model to use')
     return parser
 
 if __name__ == '__main__':
@@ -50,18 +52,18 @@ if __name__ == '__main__':
                'max_treedepth':args.max_treedepth}
     stan_params = {'iter':args.length, 'control':control, 'chains':args.chains}
     
-    rbmm = 8
-    rbmv = 100
-    rbvm = 10
-    rbvv = 100
+    rbmm = 5
+    rbmv = 10
+    rbvm = 2
+    rbvv = 10
     dbmm = rbmm
     dbmv = rbmv
     dbvm = rbvm
     dbvv = rbvv
     mdmm = 1
-    mdmv = 5
-    mdvm = 5
-    mdvv = 10
+    mdmv = 2
+    mdvm = 1
+    mdvv = 1
 
     prior_dict = {'report_bits_mean_mean':rbmm, 'report_bits_mean_var':rbmv,
                   'report_bits_var_mean':rbvm, 'report_bits_var_var':rbvv,
@@ -72,7 +74,8 @@ if __name__ == '__main__':
     
     fits_dict = {}
     for k, v in stan_format.items():
-        f = da.fit_stan_model(v, prior_dict, **stan_params)
+        f = da.fit_stan_model(v, prior_dict, model_path=args.model_path,
+                              **stan_params)
         fits_dict[k] = f
         
     fit_models = su.store_models(fits_dict)

@@ -5,6 +5,12 @@ functions {
     return distortion;	  
   }
 
+  vector get_bits(vector distortion, int n_stim) {
+    vector[dims(distortion)[0]] bits;
+    bits = n_stim*.5*log(2*pi()./distortion);
+    return bits;
+  }
+  
   real get_ae_probability(real bits, int n_stim, int max_stim, real spacing) {
     real distortion;
     real prob;
@@ -61,29 +67,35 @@ data {
 
 parameters {
   // prior-related
-  real<lower=0> report_bits_mean;
-  real<lower=0> report_bits_var;
+  real<lower=0> report_mse1_mean;
+  real<lower=0> report_mse1_var;
 
-  real<lower=0> dist_bits_mean;
-  real<lower=0> dist_bits_var;
+  real<lower=0> dist_mse1_mean;
+  real<lower=0> dist_mse1_var;
 
-  real<lower=0> mech_dist_mean;
-  real<lower=0> mech_dist_var;
+  real<lower=0> mech_mse_mean;
+  real<lower=0> mech_mse_var;
 
   // data-related
-  vector[S] report_bits_raw;
-  vector[S] dist_bits_raw;
-  vector[S] mech_dist_raw;
+  vector[S] report_mse1_raw;
+  vector[S] dist_mse1_raw;
+  vector[S] mech_mse_raw;
 }
 
 transformed parameters {
+  vector<lower=0>[S] report_mse1;
+  vector<lower=0>[S] dist_mse1;
+  vector<lower=0>[S] mech_mse;
+  
   vector<lower=0>[S] report_bits;
   vector<lower=0>[S] dist_bits;
-  vector<lower=0>[S] mech_dist;
 
-  report_bits = report_bits_mean + report_bits_raw*report_bits_var;
-  dist_bits = dist_bits_mean + dist_bits_raw*dist_bits_var;
-  mech_dist = mech_dist_mean + mech_dist_raw*mech_dist_var; 
+  report_mse1 = report_mse1_mean + report_mse1_var*report_mse1_raw;
+  dist_mse1 = dist_mse1_mean + dist_mse1_var*dist_mse1_raw;
+  mech_mse = mech_mse_mean + mech_mse_var*mech_mse_raw;
+
+  report_bits = get_bits(report_mse1, 1);
+  dist_bits = get_bits(dist_mse1, 1);
 }
 
 model {
@@ -96,18 +108,18 @@ model {
   vector[N] lps;
   
   // priors
-  report_bits_var ~ normal(report_bits_var_mean, report_bits_var_var);
-  report_bits_mean ~ normal(report_bits_mean_mean, report_bits_mean_var);
+  report_mse1_var ~ normal(report_bits_var_mean, report_bits_var_var);
+  report_mse1_mean ~ normal(report_bits_mean_mean, report_bits_mean_var);
 
-  dist_bits_var ~ normal(dist_bits_var_mean, dist_bits_var_var);
-  dist_bits_mean ~ normal(dist_bits_mean_mean, dist_bits_mean_var);
+  dist_mse1_var ~ normal(dist_bits_var_mean, dist_bits_var_var);
+  dist_mse1_mean ~ normal(dist_bits_mean_mean, dist_bits_mean_var);
 
-  mech_dist_var ~ normal(mech_dist_var_mean, mech_dist_var_var);
-  mech_dist_mean ~ normal(mech_dist_mean_mean, mech_dist_mean_var);
+  mech_mse_var ~ normal(mech_dist_var_mean, mech_dist_var_var);
+  mech_mse_mean ~ normal(mech_dist_mean_mean, mech_dist_mean_var);
   
-  report_bits_raw ~ normal(0, 1);
-  dist_bits_raw ~ normal(0, 1);
-  mech_dist_raw ~ normal(0, 1);
+  report_mse1_raw ~ normal(0, 1);
+  dist_mse1_raw ~ normal(0, 1);
+  mech_mse_raw ~ normal(0, 1);
 
   // model  
   for (t in 1:T) {
@@ -115,7 +127,7 @@ model {
     n_stim = num_stim[t];
 
     ae_prob = get_ae_probability(dist_bits[subj], n_stim, N, stim_spacing);
-    local_d = sqrt(mech_dist[subj] + get_distortion(report_bits[subj], n_stim));
+    local_d = sqrt(mech_mse[subj] + get_distortion(report_bits[subj], n_stim));
 
     err = report_err[t];
 

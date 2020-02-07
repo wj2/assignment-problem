@@ -150,6 +150,22 @@ def fit_stan_model(stan_data, prior_dict, model_path=assignment_model,
     out = (fit, fit_dict, diags)
     return out
 
+def get_mse_forward_model(params, rb='report_bits', dm='mech_dist',
+                          db='dist_bits', sz=8, spacing=np.pi/4):
+    report_bits = np.mean(params.samples[rb], axis=0)
+    dist_bits = np.mean(params.samples[db], axis=0)
+    mech_dist = np.mean(params.samples[dm], axis=0)
+    fm = lambda n: mse_forward_model(n, report_bits, dist_bits, mech_dist,
+                                     sz=sz, spacing=spacing)
+    return fm    
+
+def mse_forward_model(n, report_bits, dist_bits, mech_dist, sz=8,
+                      spacing=np.pi/4):
+    report_distortion = dr_gaussian(report_bits, n) + mech_dist
+    ae_prob, ae_mag = ae_var_discrete(dist_bits, n, spacing=spacing, sz=sz)
+    mse = (1 - ae_prob)*report_distortion + ae_prob*ae_mag
+    return mse
+
 def mse_by_load(data, **field_keys):
     load_field = field_keys['load_field']
     err_field = field_keys['err_field']
@@ -191,7 +207,8 @@ def experiment_subj_org(data, org_func=mse_by_load, dist_field='rel_dists',
                                dist_field=dist_field, err_field=err_field)
     return org_dict
 
-def plot_load_mse(data, ax=None, plot_fit=True, max_load=np.inf, **plot_args):
+def plot_load_mse(data, ax=None, plot_fit=True, max_load=np.inf, boots=None,
+                  model=None, **plot_args):
     if ax is None:
         f, ax = plt.subplots(1, 1)
     ls, errs = data
@@ -201,8 +218,15 @@ def plot_load_mse(data, ax=None, plot_fit=True, max_load=np.inf, **plot_args):
         l = l[mask]
         subj = i + 1
         mse = np.array(err)[mask]**2
+        if boots is not None:
+            mse = np.array(list(u.bootstrap_list(mse_i, np.nanmean, boots)
+                                for mse_i in mse))
         gpl.plot_trace_werr(l, mse, ax=ax, label='S{}'.format(subj),
                             jagged=True, **plot_args)
+        if model is not None:
+            model_mses = np.array(list(model(li) for li in l))
+            for mm in model_mses.T:
+                gpl.plot_trace_werr(l, mm, ax=ax)
         if plot_fit:
             pred_f, b, rms = fit_mse_assign_dependence(mse, l)
             pred = pred_f(l)
@@ -214,7 +238,8 @@ def plot_load_mse(data, ax=None, plot_fit=True, max_load=np.inf, **plot_args):
             out = (rms, rms2)
     return ax    
 
-def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, **plot_args):
+def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
+                         **plot_args):
     n_bins = plot_args.pop('n_bins')
     need_trials = plot_args.pop('need_trials')
     if ax is None:
@@ -235,6 +260,11 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, **plot_args):
                         bin_cents.append((bins[bi-1] + bins[bi])/2)
                 bin_cents = np.array(bin_cents)
                 binned_errs = np.array(binned_errs)
+                if boots is not None:
+                    binned_errs = np.array(list(u.bootstrap_list(be_i,
+                                                                 np.nanmean,
+                                                                 boots)
+                                                for be_i in binned_errs))
                 gpl.plot_trace_werr(bin_cents, binned_errs, ax=ax, jagged=True,
                                 **plot_args)
                 if plot_fit:
@@ -251,7 +281,9 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, **plot_args):
 
 def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(2,2),
                          x_ax='set size (N)', y_ax='MSE', use_plot=None,
-                         use_same_ax=False, **plot_args):
+                         use_same_ax=False, model_funcs=None, **plot_args):
+    if model_funcs is None:
+        model_funcs = {}
     if use_plot is None:
         n_exper = len(data.keys())
         if use_same_ax:
@@ -266,7 +298,11 @@ def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(2,2),
         f, axs = use_plot
     for i, k in enumerate(data.keys()):
         ax = axs[i]
-        ax = plot_func(data[k], ax=ax, **plot_args)
+        if k in model_funcs.keys():
+            model = model_funcs[k]
+        else:
+            model = None
+        ax = plot_func(data[k], ax=ax, model=model, **plot_args)
         ax.set_xlabel(x_ax)
         ax.set_ylabel(y_ax)
         ax.set_title(k)

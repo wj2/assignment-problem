@@ -6,7 +6,7 @@ functions {
   }
 
   vector get_bits(vector distortion, int n_stim) {
-    vector[dims(distortion)[0]] bits;
+    vector[dims(distortion)[1]] bits;
     bits = n_stim*.5*log(2*pi()./distortion);
     return bits;
   }

@@ -56,28 +56,29 @@ data {
 
 parameters {
   // prior-related
-  real<lower=0> report_mse1_mean;
-  real<lower=0> report_mse1_var;
+  real<lower=0> report_bits_mean;
+  real<lower=0> report_bits_var;
 
-  real<lower=0> dist_mse1_mean;
-  real<lower=0> dist_mse1_var;
+  real<lower=0> dist_bits_mean;
+  real<lower=0> dist_bits_var;
 
-  real<lower=0> mech_mse_mean;
-  real<lower=0> mech_mse_var;
+  real<lower=0> mech_dist_mean;
+  real<lower=0> mech_dist_var;
 
   // data-related
-  vector<lower=0>[S] report_mse1;
-  vector<lower=0>[S] dist_mse1;
-  vector<lower=0>[S] mech_mse;
+  vector[S] report_bits_raw;
+  vector[S] dist_bits_raw;
+  vector[S] mech_dist_raw;
 }
 
 transformed parameters {
-  
   vector<lower=0>[S] report_bits;
   vector<lower=0>[S] dist_bits;
+  vector<lower=0>[S] mech_dist;
 
-  report_bits = get_bits(report_mse1, 1);
-  dist_bits = get_bits(dist_mse1, 1);
+  report_bits = report_bits_mean + report_bits_raw*report_bits_var;
+  dist_bits = dist_bits_mean + dist_bits_raw*dist_bits_var;
+  mech_dist = mech_dist_mean + mech_dist_raw*mech_dist_var; 
 }
 
 model {
@@ -92,18 +93,18 @@ model {
   int lps_start_ind;
   
   // priors
-  report_mse1_var ~ normal(report_bits_var_mean, report_bits_var_var);
-  report_mse1_mean ~ normal(report_bits_mean_mean, report_bits_mean_var);
+  report_bits_var ~ normal(report_bits_var_mean, report_bits_var_var);
+  report_bits_mean ~ normal(report_bits_mean_mean, report_bits_mean_var);
 
-  dist_mse1_var ~ normal(dist_bits_var_mean, dist_bits_var_var);
-  dist_mse1_mean ~ normal(dist_bits_mean_mean, dist_bits_mean_var);
+  dist_bits_var ~ normal(dist_bits_var_mean, dist_bits_var_var);
+  dist_bits_mean ~ normal(dist_bits_mean_mean, dist_bits_mean_var);
 
-  mech_mse_var ~ normal(mech_dist_var_mean, mech_dist_var_var);
-  mech_mse_mean ~ normal(mech_dist_mean_mean, mech_dist_mean_var);
-
-  report_mse1 ~ normal(report_mse1_mean, report_mse1_var);
-  dist_mse1 ~ normal(dist_mse1_mean, dist_mse1_var);
-  mech_mse ~ normal(mech_mse_mean, mech_mse_var);
+  mech_dist_var ~ normal(mech_dist_var_mean, mech_dist_var_var);
+  mech_dist_mean ~ normal(mech_dist_mean_mean, mech_dist_mean_var);
+  
+  report_bits_raw ~ normal(0, 1);
+  dist_bits_raw ~ normal(0, 1);
+  mech_dist_raw ~ normal(0, 1);
 
   // model  
   for (t in 1:T) {
@@ -120,6 +121,7 @@ model {
     ae_ep = sum(ae_prob[2:n_stim]);
     if (ae_ep >= 1) {
       lps_start_ind = 2;
+      ae_prob[2:n_stim] = ae_prob[2:n_stim]/sum(ae_prob[2:n_stim]);
     } else {
       lps_start_ind = 1;
       lps[1] = log(1 - ae_ep) + normal_lpdf(err | 0, local_d);

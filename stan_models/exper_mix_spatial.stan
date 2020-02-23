@@ -114,7 +114,7 @@ model {
     ae_prob[2:n_stim] = get_ae_probability(dist_bits[subj],
 					   stim_poss[t, 2:n_stim]',
 					   n_stim);
-    local_d = sqrt(mech_mse[subj] + get_distortion(report_bits[subj], n_stim));
+    local_d = sqrt(mech_dist[subj] + get_distortion(report_bits[subj], n_stim));
 
     err = report_err[t];
 

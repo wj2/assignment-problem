@@ -5,12 +5,14 @@ import matplotlib.pyplot as plt
 import scipy.special as ss
 import scipy.io as sio
 import scipy.optimize as siopt
+import functools as ft
 import general.utility as u
 import general.plotting as gpl
 import os
 import itertools as it
 import pickle
 import pystan as ps
+import pandas as pd
 
 def load_data(folder, experiment_num=None, keep_experiments=None,
               pattern='E{}_subject_.*\.mat',
@@ -138,7 +140,38 @@ def format_experiments_stan(data, stim_spacing=None, stim_spacing_all=np.pi/4,
         stan_dicts[k] = sd
     return stan_dicts
 
+def load_spatial_data_stan(file_, sort_pos=True, n_stim=6,
+                           report_field='reportColor'):
+    data = pd.read_csv(file_,)
+    mask = data[report_field] == 1
+    nan_mask = np.logical_not(np.isnan(data['targetColor']))
+    comb_mask = mask & nan_mask
+    data = data[comb_mask]
+    sd = {}
+    sd['subj_id'] = np.array(data['subject'])
+    sd['num_stim'] = np.ones_like(sd['subj_id'], dtype=int)*n_stim
+    cnames = list('nonTargetColors_{}'.format(i + 1)
+                  for i in range(n_stim - 1))
+    cnames = ['targetColor'] + cnames
+    col_locs = np.array(data[cnames])
+    sd['stim_locs'] = np.abs(col_locs - col_locs[:, 0:1]) % np.pi
+    errs = np.abs(np.expand_dims(data['responseColor'], 1) - col_locs) % np.pi
+    sd['stim_errs'] = errs
+    sd['report_err'] = errs[:, 0]
+
+    cnames = list('nonTargetLocations_{}'.format(i + 1)
+                  for i in range(n_stim - 1))
+    cnames = ['targetLocation'] + cnames
+    pos_locs = np.array(data[cnames])
+    sd['stim_poss'] = np.abs(pos_locs - pos_locs[:, 0:1]) % np.pi
+
+    sd['S'] = len(np.unique(data['subject']))
+    sd['N'] = n_stim
+    sd['T'] = len(errs)
+    return sd
+
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
+spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'
 def fit_stan_model(stan_data, prior_dict, model_path=assignment_model,
                    **stan_params):
     fit_dict = {}
@@ -155,16 +188,38 @@ def get_mse_forward_model(params, rb='report_bits', dm='mech_dist',
     report_bits = np.mean(params.samples[rb], axis=0)
     dist_bits = np.mean(params.samples[db], axis=0)
     mech_dist = np.mean(params.samples[dm], axis=0)
-    fm = lambda n: mse_forward_model(n, report_bits, dist_bits, mech_dist,
-                                     sz=sz, spacing=spacing)
-    return fm    
+    funcs = []
+    for i in range(report_bits.shape[0]):
+        rb = report_bits[i]
+        db = dist_bits[i]
+        md = mech_dist[i]
+        fm = ft.partial(mse_forward_model, report_bits=rb, dist_bits=db,
+                        mech_dist=md, sz=sz, spacing=spacing)
+        funcs.append(fm)
+    return funcs
 
-def mse_forward_model(n, report_bits, dist_bits, mech_dist, sz=8,
+def mse_forward_model(n, dists, report_bits=1, dist_bits=1, mech_dist=1, sz=8,
                       spacing=np.pi/4):
     report_distortion = dr_gaussian(report_bits, n) + mech_dist
     ae_prob, ae_mag = ae_var_discrete(dist_bits, n, spacing=spacing, sz=sz)
-    mse = (1 - ae_prob)*report_distortion + ae_prob*ae_mag
-    return mse
+    if n > 1:
+        ae_pm = ae_prob*np.mean(dists[1:n]**2 + report_distortion)
+    else:
+        ae_pm = 0
+    rmse = np.sqrt((1 - ae_prob)*report_distortion + ae_pm)
+    return rmse
+
+def model_data(data, fm, dist_field='rel_dists', load_field='N',
+               outfield='error_vec'):
+    out = {}
+    mses = np.zeros(data[dist_field].shape[1])
+    for i, rd in enumerate(data[dist_field][0]):
+        n = data[load_field][0, i]
+        mses[i] = fm(n, rd)
+    out[outfield] = np.expand_dims(mses, 0)
+    out[dist_field] = data[dist_field]
+    out[load_field] = data[load_field]
+    return out
 
 def mse_by_load(data, **field_keys):
     load_field = field_keys['load_field']
@@ -208,11 +263,16 @@ def experiment_subj_org(data, org_func=mse_by_load, dist_field='rel_dists',
     return org_dict
 
 def plot_load_mse(data, ax=None, plot_fit=True, max_load=np.inf, boots=None,
-                  model=None, **plot_args):
+                  sep_subj=False, data_color=(.7, .7, .7),
+                  **plot_args):
     if ax is None:
         f, ax = plt.subplots(1, 1)
     ls, errs = data
     for i, err in enumerate(errs):
+        if sep_subj:
+            use_ax = ax[i]
+        else:
+            use_ax = ax
         l = ls[i]
         mask = l <= max_load
         l = l[mask]
@@ -221,31 +281,21 @@ def plot_load_mse(data, ax=None, plot_fit=True, max_load=np.inf, boots=None,
         if boots is not None:
             mse = np.array(list(u.bootstrap_list(mse_i, np.nanmean, boots)
                                 for mse_i in mse))
-        gpl.plot_trace_werr(l, mse, ax=ax, label='S{}'.format(subj),
-                            jagged=True, **plot_args)
-        if model is not None:
-            model_mses = np.array(list(model(li) for li in l))
-            for mm in model_mses.T:
-                gpl.plot_trace_werr(l, mm, ax=ax)
-        if plot_fit:
-            pred_f, b, rms = fit_mse_assign_dependence(mse, l)
-            pred = pred_f(l)
-            fl = gpl.plot_trace_werr(l, pred, ax=ax)
-            pred_f2, b2, rms2 = fit_mse_dependence(mse, l)
-            pred2 = pred_f2(l)
-            gpl.plot_trace_werr(l, pred2, ax=ax, linestyle='--',
-                                color=fl[0].get_color())
-            out = (rms, rms2)
+        gpl.plot_trace_werr(l, mse, ax=use_ax, label='S{}'.format(subj),
+                            jagged=True, color=data_color, **plot_args)
     return ax    
 
 def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
-                         **plot_args):
-    n_bins = plot_args.pop('n_bins')
-    need_trials = plot_args.pop('need_trials')
+                         sep_subj=False, n_bins=5, need_trials=20,
+                         data_color=None, **plot_args):
     if ax is None:
         f, ax = plt.subplots(1,1)
     ls, load_errs = data
     for j, load in enumerate(load_errs):
+        if sep_subj:
+            use_ax = ax[j]
+        else:
+            use_ax = ax
         for i, (errs, dists) in enumerate(load):
             if ls[j][i] > 1:
                 dists = np.abs(dists[:, 1])
@@ -265,30 +315,30 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
                                                                  np.nanmean,
                                                                  boots)
                                                 for be_i in binned_errs))
-                gpl.plot_trace_werr(bin_cents, binned_errs, ax=ax, jagged=True,
-                                **plot_args)
-                if plot_fit:
-                    if 'central_tendency' in plot_args.keys():
-                        cent_func = plot_args['central_tendency']
-                    else:
-                        cent_func = np.nanmean
-                    cents =list(cent_func(be) for be in binned_errs)
-                    flat_val = np.mean(cents)
-                    pred = np.ones_like(bin_cents)*flat_val
-                    gpl.plot_trace_werr(bin_cents, pred, ax=ax)
-
+                gpl.plot_trace_werr(bin_cents, binned_errs, ax=use_ax, jagged=True,
+                                    color=data_color, **plot_args)
     return ax
 
-def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(2,2),
-                         x_ax='set size (N)', y_ax='MSE', use_plot=None,
-                         use_same_ax=False, model_funcs=None, **plot_args):
-    if model_funcs is None:
-        model_funcs = {}
+def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(1,1),
+                         x_ax='set size (N)', y_ax='color report MSE',
+                         use_plot=None, use_same_ax=False, model_data=None,
+                         sep_subj=False, **plot_args):
+    if model_data is None:
+        model_data = {}
     if use_plot is None:
         n_exper = len(data.keys())
         if use_same_ax:
             f, ax = plt.subplots(1, 1, figsize=ax_size)
             axs = (ax,)*n_exper
+        elif sep_subj:
+            f, ax = {}, {}
+            for k in data.keys():
+                n_subjs = len(data[k][0])
+                figsize = (ax_size[0]*n_subjs, ax_size[1])                
+                f_k, ax_k = plt.subplots(1, n_subjs, figsize=figsize,
+                                         sharex=True, sharey=True)
+                f[k] = f_k
+                ax[k] = ax_k
         else:
             figsize = (ax_size[0], ax_size[1]*n_exper)
             f, axs = plt.subplots(n_exper, 1, figsize=figsize)
@@ -297,16 +347,31 @@ def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(2,2),
     else:
         f, axs = use_plot
     for i, k in enumerate(data.keys()):
-        ax = axs[i]
-        if k in model_funcs.keys():
-            model = model_funcs[k]
+        if sep_subj:
+            use_ax = ax[k]
+        else:
+            use_ax = axs[i]
+        if k in model_data.keys():
+            model = model_data[k]
         else:
             model = None
-        ax = plot_func(data[k], ax=ax, model=model, **plot_args)
-        ax.set_xlabel(x_ax)
-        ax.set_ylabel(y_ax)
-        ax.set_title(k)
-    return f, axs
+        _ = plot_func(data[k], ax=use_ax, sep_subj=sep_subj,
+                      **plot_args)
+        if model is not None:
+            orig_color = plot_args['data_color']
+            plot_args['data_color'] = None
+            _ = plot_func(model, ax=use_ax, sep_subj=sep_subj,
+                          **plot_args)
+            plot_args['data_color'] = orig_color
+        if sep_subj:
+            use_ax[0].set_ylabel(y_ax)
+            for ax_i in use_ax:
+                ax_i.set_xlabel(x_ax)
+        else:
+            use_ax.set_xlabel(x_ax)
+            use_ax.set_ylabel(y_ax)
+            use_ax.set_title(k)
+    return f, ax
 
 def rd_gaussian(mse, n, tiny_eps=1e-5, correct=True):
     if correct:
@@ -361,10 +426,10 @@ def ae_var_discrete(loc_b, ns, spacing=np.pi/4, sz=8, tiny_eps=1e-5):
     prob = d.cdf(-spacing) 
     boths, eithers, total = discrete_space(sz, ns)
     ae_likely = prob*boths*2 + prob*eithers
-    ae_likely = np.min((np.stack(ae_likely),
-                        np.ones_like(ae_likely) - tiny_eps),
-                       axis=0)
-    ae_mag = ((1/12)*(np.pi*2)**2)
+    # ae_likely = np.min((np.stack(ae_likely),
+    #                     np.ones_like(ae_likely) - tiny_eps),
+    #                    axis=0)
+    ae_mag = (1/12)*(np.pi*2)**2
     return ae_likely, ae_mag
 
 def ae_var_continuous(loc_b, ns, tiny_eps=1e-5):

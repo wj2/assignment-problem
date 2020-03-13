@@ -53,6 +53,29 @@ def load_data(folder, experiment_num=None, keep_experiments=None,
         out_info = new_out
     return out_info
 
+def convert_spatial_data(stan_data):
+    out = {}    
+    for k, data in stan_data.items():
+        subs = np.unique(data['subj_id'])
+        out_k = []
+        for i, sub in enumerate(subs):
+            sub_mask = data['subj_id'] == sub
+            sub_dict = {}
+            ev = np.expand_dims(data['report_err'][sub_mask], 0)
+            sub_dict['error_vec'] = ev
+            dev = np.expand_dims(data['stim_errs'][sub_mask], 0)
+            sub_dict['dist_error_vec'] = dev
+            ns = np.expand_dims(data['num_stim'][sub_mask], 0)
+            sub_dict['N'] = ns
+            rds = np.expand_dims(data['stim_locs'][sub_mask], 0)
+            sub_dict['rel_dists'] = rds
+            spos = np.expand_dims(data['stim_poss'][sub_mask], 0)
+            sub_dict['stim_poss'] = spos
+            out_k.append(sub_dict)
+            print(sub_dict.keys())
+    out[k] = out_k
+    return out
+
 def _convert_to_dict(subj_results):
     d = {}
     for name in list(subj_results.dtype.fields.keys()):
@@ -198,27 +221,42 @@ def get_mse_forward_model(params, rb='report_bits', dm='mech_dist',
         funcs.append(fm)
     return funcs
 
-def mse_forward_model(n, dists, report_bits=1, dist_bits=1, mech_dist=1, sz=8,
-                      spacing=np.pi/4):
+def ae_spatial_probability(dist_bits, ns, spatial_dists):
+    dist = dr_gaussian(dist_bits, ns)
+    ae_probs = sts.norm(0, np.sqrt(dist)).cdf(-spatial_dists)
+    return ae_probs
+
+def mse_forward_model(n, report_dists, spatial_dists=None, report_bits=1,
+                      dist_bits=1, mech_dist=1, sz=8, spacing=np.pi/4):
     report_distortion = dr_gaussian(report_bits, n) + mech_dist
-    ae_prob, ae_mag = ae_var_discrete(dist_bits, n, spacing=spacing, sz=sz)
     if n > 1:
-        ae_pm = ae_prob*np.mean(dists[1:n]**2 + report_distortion)
+        if spatial_dists is None:
+            ae_prob, _ = ae_var_discrete(dist_bits, n, spacing=spacing, sz=sz)
+            ae_pm = ae_prob*np.mean(report_dists[1:n]**2 + report_distortion)
+        else:
+            ae_probs = ae_spatial_probability(dist_bits, n, spatial_dists)
+            ae_prob = np.sum(ae_probs)
+            ae_pm = np.sum(ae_probs[1:n]*(report_dists[1:n]**2))
     else:
         ae_pm = 0
     rmse = np.sqrt((1 - ae_prob)*report_distortion + ae_pm)
     return rmse
 
 def model_data(data, fm, dist_field='rel_dists', load_field='N',
-               outfield='error_vec'):
+               outfield='error_vec', spatial_field='stim_poss',
+               spatial=False):
     out = {}
     mses = np.zeros(data[dist_field].shape[1])
     for i, rd in enumerate(data[dist_field][0]):
         n = data[load_field][0, i]
-        mses[i] = fm(n, rd)
+        if spatial:
+            mses[i] = fm(n, rd, data[spatial_field][0, i])
+        else:
+            mses[i] = fm(n, rd)
     out[outfield] = np.expand_dims(mses, 0)
     out[dist_field] = data[dist_field]
     out[load_field] = data[load_field]
+    out[spatial_field] = data[spatial_field]
     return out
 
 def mse_by_load(data, **field_keys):

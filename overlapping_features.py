@@ -340,7 +340,7 @@ def d_func(delta_d, overall_d):
     return np.array(d2), np.array(d1)
 
 def noncoded_weighting(k, c, p):
-    weight = (k - c)*p # (p**2)/6
+    weight = (k - c)*(p**2)/12
     return np.array(weight)
 
 def weighted_errors_bits_feats(bits_list, features, objs_list, overlaps_list,
@@ -401,7 +401,7 @@ def weighted_errors_bits(bits_list, features, objs_list, overlaps_list,
 
 def weighted_errors_lambda(bits, features, objs, overlaps_list, d1_n=None,
                            p=100, lam_range=None, lam_beg=0, lam_end_mult=100,
-                           lam_n=1000, d1_fact=10):
+                           lam_n=1000, d1_fact=50):
     if d1_n is None:
         d1_size = 1
         d1_n = 1

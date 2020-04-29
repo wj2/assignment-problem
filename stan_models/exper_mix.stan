@@ -127,3 +127,30 @@ model {
     target += log_sum_exp(lps[:n_stim]);
   }
 }
+
+generated quantities {
+  int subj;
+  int n_stim;
+  real ae_prob;
+  real local_d;
+  real err;
+  vector[N] lps;
+  vector[T] log_lik;
+  
+  for (t in 1:T) {
+    subj = subj_id[t];
+    n_stim = num_stim[t];
+
+    ae_prob = get_ae_probability(dist_bits[subj], n_stim, N, stim_spacing);
+    local_d = sqrt(mech_dist[subj] + get_distortion(report_bits[subj], n_stim));
+
+    err = report_err[t];
+
+    lps[1] = log(1 - ae_prob) + normal_lpdf(err | 0, local_d);
+    for (i in 2:n_stim) {
+      lps[i] = (log(ae_prob/(n_stim - 1))
+		+ normal_lpdf(stim_errs[t, i] | 0, local_d));
+    }
+    log_lik[t] = log_sum_exp(lps[:n_stim]);
+  }  
+}

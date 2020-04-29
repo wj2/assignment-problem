@@ -5,6 +5,7 @@ import numpy as np
 import pickle as p
 import datetime
 import os
+import arviz as az
 
 import general.stan_utility as su
 import assignment.data_analysis as da
@@ -33,6 +34,8 @@ def create_parser():
                         help='maximum tree depth to use')
     parser.add_argument('--model_path', default=da.assignment_model,
                         help='path to pkld stan model to use')
+    parser.add_argument('--no_arviz', default=False, action='store_true',
+                        help='do not store arviz inference data')
     return parser
 
 if __name__ == '__main__':
@@ -78,7 +81,7 @@ if __name__ == '__main__':
                               **stan_params)
         fits_dict[k] = f
         
-    fit_models = su.store_models(fits_dict)
+    fit_models = su.store_models(fits_dict, store_arviz=not args.no_arviz)
     dt = str(datetime.datetime.now()).replace(' ', '-')
     fname = args.output_pattern.format(dt)
     fname = os.path.join(args.outfolder, fname)

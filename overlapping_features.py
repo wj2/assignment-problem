@@ -1,4 +1,5 @@
 
+import warnings
 import numpy as np
 import itertools as it
 import scipy.special as ss
@@ -196,7 +197,74 @@ def line_picking_square(x):
 def line_picking_line(x):
     p = 2*(1 - x)
     return p
-    
+
+def compute_ds(b, k, c, delt, n_stim, s=100, repl_nan=True,
+               source_distrib='gaussian'):
+    if source_distrib not in ('gaussian', 'uniform'):
+        raise Exception('this function only works for Gaussians sources')
+    """ Gaussian is N(0, s) """
+    """ Uniform goes from 0 to s """
+    ft = ((1 - delt**2)/4)**(c/(k + c))
+    if source_distrib == 'gaussian':
+        st = s
+    elif source_distrib == 'uniform':
+        st = (s**2)/(2*np.pi)
+    tt = np.exp(-2*b/(n_stim*(k + c)))
+    d = ft*st*tt
+    if repl_nan and len(np.array(d).shape) > 0:
+        with warnings.catch_warnings(record=True) as w:
+            mask = 2*d/(1 - delt) < s**2
+        d[np.logical_not(mask)] = np.nan
+    return d
+
+def rdb_gaussian(d, s):
+    b = .5*np.log(s/d)
+    return b
+
+def rdb_uniform(d, s):
+    b = .5*np.log((s**2)/(2*np.pi*d))
+    return b
+
+def rdb(d, s, source_distrib='uniform'):
+    rdb_dict = {'uniform':rdb_uniform, 'gaussian':rdb_gaussian}
+    f = rdb_dict[source_distrib]
+    return f(d, s)
+
+def dxdy_from_dsdelt(ds, delt):
+    dx = 2*ds/(1 + delt)
+    dy = 2*ds/(1 - delt)
+    return dx, dy
+
+def ae_ev_bits(bits, k, s, n_stim, c_xys, delts,
+               source_distrib='uniform'):
+    aes = np.zeros((len(c_xys), len(delts), len(bits)))
+    evs = np.zeros_like(aes)
+    n_stim = (n_stim,)
+    for i, c_xy in enumerate(c_xys):
+        for j, delt in enumerate(delts):
+            for l, bit in enumerate(bits):
+                ds = compute_ds(bit, k, c_xy, delt, n_stim[0], s=s,
+                                source_distrib=source_distrib)
+                dx, dy = dxdy_from_dsdelt(ds, delt)
+                dx = np.array([dx])
+                dy = np.array([dy])
+                aes[i, j, l] = integrate_assignment_error(n_stim, dx, dy, c_xy,
+                                                          p=s)
+                evs[i, j, l] = ds
+    return aes, evs
+
+def mse_weighting(k, c, s, source_distrib='uniform', n_emp=10000):
+    d = k - c
+    if source_distrib == 'gaussian':
+        num = 2*sps.gamma((d + 1)/2)
+        denom = sps.gamma(d/2)
+        avg_dist = s*(num/denom)**2
+    elif source_distrib == 'uniform':
+        pts = s*np.random.rand(2, d, n_emp)
+        d_rs = np.sqrt(np.sum(np.diff(pts, axis=0)[0]**2, axis=0))
+        avg_dist = np.mean(d_rs)**2
+    return avg_dist
+
 def integrate_assignment_error(esses, d1, d2, overlapping_d, p=100):
     if d1 is None and d2 is not None:
         d1 = d2
@@ -340,7 +408,7 @@ def d_func(delta_d, overall_d):
     return np.array(d2), np.array(d1)
 
 def noncoded_weighting(k, c, p):
-    weight = (k - c)*p # (p**2)/6
+    weight = (k - c)*(p**2)/12
     return np.array(weight)
 
 def weighted_errors_bits_feats(bits_list, features, objs_list, overlaps_list,
@@ -401,7 +469,7 @@ def weighted_errors_bits(bits_list, features, objs_list, overlaps_list,
 
 def weighted_errors_lambda(bits, features, objs, overlaps_list, d1_n=None,
                            p=100, lam_range=None, lam_beg=0, lam_end_mult=100,
-                           lam_n=1000, d1_fact=10):
+                           lam_n=1000, d1_fact=50):
     if d1_n is None:
         d1_size = 1
         d1_n = 1

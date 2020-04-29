@@ -21,6 +21,34 @@ functions {
     }
     return ae_prob;
   }
+
+  real compute_log_prob(real err, real db, real rb, real md, vector poss,
+			int n_stim, vector alt_err) {
+    vector[n_stim] ae_prob;
+    real local_d;
+    vector[n_stim] lps;
+    real ae_ep;
+    int lps_start_ind;
+    real sum_lps;
+
+    ae_prob[2:n_stim] = get_ae_probability(db, poss[2:n_stim], n_stim);
+    local_d = sqrt(md + get_distortion(rb, n_stim));
+
+    ae_ep = sum(ae_prob[2:n_stim]);
+    if (ae_ep >= 1) {
+      lps_start_ind = 2;
+      ae_prob[2:n_stim] = ae_prob[2:n_stim]/sum(ae_prob[2:n_stim]);
+    } else {
+      lps_start_ind = 1;
+      lps[1] = log(1 - ae_ep) + normal_lpdf(err | 0, local_d);
+    }
+    for (i in 2:n_stim) {
+      lps[i] = (log(ae_prob[i])
+		+ normal_lpdf(alt_err[i] | 0, local_d));
+    }
+    sum_lps = log_sum_exp(lps[lps_start_ind:n_stim]);
+    return sum_lps;
+  }
 }
 
 data {
@@ -84,13 +112,7 @@ transformed parameters {
 model {
   // var declarations
   int subj;
-  int n_stim;
-  vector[N] ae_prob;
-  real local_d;
-  real err;
-  vector[N] lps;
-  real ae_ep;
-  int lps_start_ind;
+  real sum_lps;
   
   // priors
   report_bits_var ~ normal(report_bits_var_mean, report_bits_var_var);
@@ -109,27 +131,22 @@ model {
   // model  
   for (t in 1:T) {
     subj = subj_id[t];
-    n_stim = num_stim[t];
+    sum_lps = compute_log_prob(report_err[t], dist_bits[subj],
+			       report_bits[subj], mech_dist[subj],
+			       stim_poss[t]', num_stim[t], stim_errs[t]');
+    target += sum_lps;
+  }
+}
 
-    ae_prob[2:n_stim] = get_ae_probability(dist_bits[subj],
-					   stim_poss[t, 2:n_stim]',
-					   n_stim);
-    local_d = sqrt(mech_dist[subj] + get_distortion(report_bits[subj], n_stim));
-
-    err = report_err[t];
-
-    ae_ep = sum(ae_prob[2:n_stim]);
-    if (ae_ep >= 1) {
-      lps_start_ind = 2;
-      ae_prob[2:n_stim] = ae_prob[2:n_stim]/sum(ae_prob[2:n_stim]);
-    } else {
-      lps_start_ind = 1;
-      lps[1] = log(1 - ae_ep) + normal_lpdf(err | 0, local_d);
-    }
-    for (i in 2:n_stim) {
-      lps[i] = (log(ae_prob[i])
-		+ normal_lpdf(stim_errs[t, i] | 0, local_d));
-    }
-    target += log_sum_exp(lps[lps_start_ind:n_stim]);
+generated quantities {
+  vector[T] log_lik;
+  int subj;
+  real sum_lps;
+  for (t in 1:T) {
+    subj = subj_id[t];
+    sum_lps = compute_log_prob(report_err[t], dist_bits[subj],
+			       report_bits[subj], mech_dist[subj],
+			       stim_poss[t]', num_stim[t], stim_errs[t]');    
+    log_lik[t] = sum_lps;    
   }
 }

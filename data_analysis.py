@@ -228,16 +228,43 @@ def simulate_data(data, func, spatial=False, n_samples=1):
         data_model[k] = k_dat
     return data_model    
 
+
+mix_nb_man = {'observed_data':'report_err',
+              'log_likelihood':('report_err', 'log_lik'),
+              'dims':{'report_bits':['subject'],
+                      'dist_bits':['subject'],
+                      'mech_mse':['subject']}}
+mix_man = {'observed_data':'report_err',
+           'log_likelihood':('report_err', 'log_lik'),
+           'dims':{'report_bits':['subject'],
+                   'dist_bits':['subject'],
+                   'mech_mse':['subject']}}
+mix_spatial_man = {'observed_data':'report_err',
+                   'log_likelihood':('report_err', 'log_lik'),
+                   'dims':{'report_bits':['subject'],
+                           'dist_bits':['subject'],
+                           'mech_mse':['subject']}}
+
+arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
+                   'exper_mix.pkl':mix_man,
+                   'exper_mix_spatial.pkl':mix_spatial_man}
+
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
 spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'
 def fit_stan_model(stan_data, prior_dict, model_path=assignment_model,
                    **stan_params):
     fit_dict = {}
     fit_dict.update(stan_data)
-    fit_dict.update(prior_dict)
+    fit_dict.update(prior_dict)    
     sm = pickle.load(open(model_path, 'rb'))
     fit = sm.sampling(data=fit_dict, **stan_params)
     diags = ps.diagnostics.check_hmc_diagnostics(fit)
+
+    model_name = os.path.split(model_path)[1]
+    arv_man = arviz_manifests[model_name]
+    n_subj = fit_dict['S']
+    arv_man['coords'] = {'subject': list(range(1, n_subj + 1))}
+    fit_dict['arviz_manifest'] = arv_man
     out = (fit, fit_dict, diags)
     return out
 

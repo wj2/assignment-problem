@@ -29,6 +29,8 @@ def create_parser():
                         help='adapt_delta value to use')
     parser.add_argument('--max_treedepth', type=int, default=10,
                         help='maximum tree depth to use')
+    parser.add_argument('--no_arviz', default=False, action='store_true',
+                        help='do not store arviz inference data')
     return parser
 
 if __name__ == '__main__':
@@ -71,7 +73,7 @@ if __name__ == '__main__':
                               **stan_params)
         fits_dict[k] = f
         
-    fit_models = su.store_models(fits_dict)
+    fit_models = su.store_models(fits_dict, store_arviz=not args.no_arviz)
     dt = str(datetime.datetime.now()).replace(' ', '-')
     fname = args.output_pattern.format(dt)
     fname = os.path.join(args.outfolder, fname)

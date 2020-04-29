@@ -72,7 +72,6 @@ def convert_spatial_data(stan_data):
             spos = np.expand_dims(data['stim_poss'][sub_mask], 0)
             sub_dict['stim_poss'] = spos
             out_k.append(sub_dict)
-            print(sub_dict.keys())
     out[k] = out_k
     return out
 
@@ -193,6 +192,42 @@ def load_spatial_data_stan(file_, sort_pos=True, n_stim=6,
     sd['T'] = len(errs)
     return sd
 
+def load_models(folder, pattern):
+    fls = u.get_matching_files(folder, pattern)
+    model_dict = {}
+    func_dict = {}
+    for fl in fls:
+        pth = os.path.join(folder, fl)
+        lm = pickle.load(open(pth, 'rb'))
+        model_dict.update(lm['models'])
+    
+    for k, md in model_dict.items():
+        fm = get_forward_model(md[0])
+        func_dict[k] = fm
+    return model_dict, func_dict
+
+def load_spatial_models(folder, pattern):
+    fls = list(u.get_matching_files(folder, pattern))
+    spatial_model = pickle.load(open(os.path.join(folder, fls[0]), 'rb'))
+    models = spatial_model['models']
+    data = convert_spatial_data(spatial_model['data'])
+    funcs = {}
+    for k, md in models.items():
+        fm = get_forward_model(md[0], fm=sample_forward_model)
+        funcs[k] = fm
+    return models, funcs, data
+
+def simulate_data(data, func, spatial=False, n_samples=1):
+    data_model = {}
+    for (k, d) in data.items():
+        fm = func[k]
+        k_dat = []
+        for i, sub_d in enumerate(d):
+            md = model_data(sub_d, fm[i], spatial=spatial, n_samples=n_samples)
+            k_dat.append(md)
+        data_model[k] = k_dat
+    return data_model    
+
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
 spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'
 def fit_stan_model(stan_data, prior_dict, model_path=assignment_model,
@@ -206,8 +241,42 @@ def fit_stan_model(stan_data, prior_dict, model_path=assignment_model,
     out = (fit, fit_dict, diags)
     return out
 
-def get_mse_forward_model(params, rb='report_bits', dm='mech_dist',
-                          db='dist_bits', sz=8, spacing=np.pi/4):
+def ae_spatial_probability(dist_bits, ns, spatial_dists):
+    dist = dr_gaussian(dist_bits, ns)
+    ae_probs = sts.norm(0, np.sqrt(dist)).cdf(-spatial_dists)
+    return ae_probs
+
+def _get_ae_probabilities(n, report_dists, spatial_dists=None, report_bits=1,
+                          dist_bits=1, mech_dist=1, sz=8, spacing=np.pi/4):
+    report_distortion = dr_gaussian(report_bits, n) + mech_dist
+    if n > 1:
+        if spatial_dists is None:
+            ae_prob, _ = ae_var_discrete(dist_bits, n, spacing=spacing, sz=sz)
+            ae_pm = ae_prob*np.mean(report_dists[1:n]**2 + report_distortion)
+            ae_probs = np.ones(n)*ae_prob
+            ae_probs[0] = 0
+        else:
+            ae_probs = ae_spatial_probability(dist_bits, n, spatial_dists)
+    else:
+        ae_pm = 0
+        ae_probs = np.zeros(n)
+    return report_distortion, ae_probs
+
+def mse_forward_model(n, report_dists, spatial_dists=None, report_bits=1,
+                      dist_bits=1, mech_dist=1, sz=8, spacing=np.pi/4):
+    out = _get_ae_probabilities(n, report_dists, spatial_dists=spatial_dists,
+                                report_bits=report_bits, dist_bits=dist_bits,
+                                mech_dist=mech_dist, sz=sz, spacing=spacing)
+    report_distortion, ae_probs = out
+    ae_prob = np.sum(ae_probs)
+    ae_pm = np.sum(ae_probs[1:n]*(report_dists[1:n]**2
+                                  + report_distortion))
+    rmse = np.sqrt((1 - ae_prob)*report_distortion + ae_pm)
+    return rmse
+
+def get_forward_model(params, rb='report_bits', dm='mech_dist',
+                          db='dist_bits', sz=8, spacing=np.pi/4,
+                          fm=mse_forward_model):
     report_bits = np.mean(params.samples[rb], axis=0)
     dist_bits = np.mean(params.samples[db], axis=0)
     mech_dist = np.mean(params.samples[dm], axis=0)
@@ -216,47 +285,45 @@ def get_mse_forward_model(params, rb='report_bits', dm='mech_dist',
         rb = report_bits[i]
         db = dist_bits[i]
         md = mech_dist[i]
-        fm = ft.partial(mse_forward_model, report_bits=rb, dist_bits=db,
+        fm = ft.partial(fm, report_bits=rb, dist_bits=db,
                         mech_dist=md, sz=sz, spacing=spacing)
         funcs.append(fm)
     return funcs
 
-def ae_spatial_probability(dist_bits, ns, spatial_dists):
-    dist = dr_gaussian(dist_bits, ns)
-    ae_probs = sts.norm(0, np.sqrt(dist)).cdf(-spatial_dists)
-    return ae_probs
-
-def mse_forward_model(n, report_dists, spatial_dists=None, report_bits=1,
-                      dist_bits=1, mech_dist=1, sz=8, spacing=np.pi/4):
-    report_distortion = dr_gaussian(report_bits, n) + mech_dist
-    if n > 1:
-        if spatial_dists is None:
-            ae_prob, _ = ae_var_discrete(dist_bits, n, spacing=spacing, sz=sz)
-            ae_pm = ae_prob*np.mean(report_dists[1:n]**2 + report_distortion)
-        else:
-            ae_probs = ae_spatial_probability(dist_bits, n, spatial_dists)
-            ae_prob = np.sum(ae_probs)
-            ae_pm = np.sum(ae_probs[1:n]*(report_dists[1:n]**2))
-    else:
-        ae_pm = 0
-    rmse = np.sqrt((1 - ae_prob)*report_distortion + ae_pm)
-    return rmse
+def sample_forward_model(n, report_dists, spatial_dists=None, n_samples=1,
+                         report_bits=1, dist_bits=1, mech_dist=1, sz=8,
+                         spacing=np.pi/4):
+    out = _get_ae_probabilities(n, report_dists, spatial_dists=spatial_dists,
+                                report_bits=report_bits, dist_bits=dist_bits,
+                                mech_dist=mech_dist, sz=sz, spacing=spacing)
+    report_distortion, ae_probs = out
+    ae_probs[0] = 1 - np.sum(ae_probs[1:n])
+    if ae_probs[0] < 0:
+        ae_probs[0] = 0
+        ae_probs[1:n] = ae_probs[1:n]/np.sum(ae_probs[1:n])
+    resps = np.random.choice(range(n), n_samples, p=ae_probs)
+    means = report_dists[resps]
+    var = sts.norm(0, np.sqrt(report_distortion)).rvs(means.shape)
+    samples = means + var
+    return samples
 
 def model_data(data, fm, dist_field='rel_dists', load_field='N',
                outfield='error_vec', spatial_field='stim_poss',
-               spatial=False):
+               spatial=False, n_samples=1):
     out = {}
-    mses = np.zeros(data[dist_field].shape[1])
+    mses = np.zeros((data[dist_field].shape[1], n_samples))
     for i, rd in enumerate(data[dist_field][0]):
         n = data[load_field][0, i]
         if spatial:
-            mses[i] = fm(n, rd, data[spatial_field][0, i])
+            samps = fm(n, rd, data[spatial_field][0, i], n_samples=n_samples)
         else:
-            mses[i] = fm(n, rd)
+            samps = fm(n, rd)
+        mses[i] = samps
     out[outfield] = np.expand_dims(mses, 0)
     out[dist_field] = data[dist_field]
     out[load_field] = data[load_field]
-    out[spatial_field] = data[spatial_field]
+    if spatial:
+        out[spatial_field] = data[spatial_field]
     return out
 
 def mse_by_load(data, **field_keys):
@@ -325,7 +392,7 @@ def plot_load_mse(data, ax=None, plot_fit=True, max_load=np.inf, boots=None,
 
 def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
                          sep_subj=False, n_bins=5, need_trials=20,
-                         data_color=None, **plot_args):
+                         data_color=None, digit_percentile=95, **plot_args):
     if ax is None:
         f, ax = plt.subplots(1,1)
     ls, load_errs = data
@@ -336,16 +403,18 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
             use_ax = ax
         for i, (errs, dists) in enumerate(load):
             if ls[j][i] > 1:
-                dists = np.abs(dists[:, 1])
-                bins = np.linspace(0, np.max(dists) + eps, n_bins)
+                dists = np.min(np.abs(dists[:, 1:]), axis=1)
+                max_bin = np.percentile(dists, digit_percentile)
+                bins = np.linspace(0, max_bin + eps, n_bins + 1)
                 bin_inds = np.digitize(dists, bins)
                 binned_errs = []
                 bin_cents = []
-                for k, bi in enumerate(np.unique(bin_inds)):
+                for bi, binbeg in enumerate(bins[:-1]): 
                     mask = bin_inds == bi
                     if np.sum(mask) > need_trials:
-                        binned_errs.append(errs[mask]**2)
-                        bin_cents.append((bins[bi-1] + bins[bi])/2)
+                        be = errs[mask].flatten()**2
+                        binned_errs.append(be)
+                        bin_cents.append((binbeg + bins[bi+1])/2)
                 bin_cents = np.array(bin_cents)
                 binned_errs = np.array(binned_errs)
                 if boots is not None:
@@ -360,7 +429,8 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
 def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(1,1),
                          x_ax='set size (N)', y_ax='color report MSE',
                          use_plot=None, use_same_ax=False, model_data=None,
-                         sep_subj=False, **plot_args):
+                         sep_subj=False, model_boots=None, boots=None,
+                         **plot_args):
     if model_data is None:
         model_data = {}
     if use_plot is None:
@@ -384,6 +454,7 @@ def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(1,1),
                 axs = (axs,)
     else:
         f, axs = use_plot
+        ax = {k:axs for k in data.keys()}
     for i, k in enumerate(data.keys()):
         if sep_subj:
             use_ax = ax[k]
@@ -393,13 +464,13 @@ def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(1,1),
             model = model_data[k]
         else:
             model = None
-        _ = plot_func(data[k], ax=use_ax, sep_subj=sep_subj,
+        _ = plot_func(data[k], ax=use_ax, sep_subj=sep_subj, boots=boots,
                       **plot_args)
         if model is not None:
             orig_color = plot_args['data_color']
             plot_args['data_color'] = None
             _ = plot_func(model, ax=use_ax, sep_subj=sep_subj,
-                          **plot_args)
+                          boots=model_boots, **plot_args)
             plot_args['data_color'] = orig_color
         if sep_subj:
             use_ax[0].set_ylabel(y_ax)

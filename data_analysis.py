@@ -230,17 +230,17 @@ def simulate_data(data, func, spatial=False, n_samples=1):
 
 
 mix_nb_man = {'observed_data':'report_err',
-              'log_likelihood':('report_err', 'log_lik'),
+              'log_likelihood':{'report_err':'log_lik'},
               'dims':{'report_bits':['subject'],
                       'dist_bits':['subject'],
                       'mech_mse':['subject']}}
 mix_man = {'observed_data':'report_err',
-           'log_likelihood':('report_err', 'log_lik'),
+           'log_likelihood':{'report_err':'log_lik'},
            'dims':{'report_bits':['subject'],
                    'dist_bits':['subject'],
                    'mech_mse':['subject']}}
 mix_spatial_man = {'observed_data':'report_err',
-                   'log_likelihood':('report_err', 'log_lik'),
+                   'log_likelihood':{'report_err':'log_lik'},
                    'dims':{'report_bits':['subject'],
                            'dist_bits':['subject'],
                            'mech_mse':['subject']}}

@@ -13,7 +13,8 @@ import general.utility as u
 def create_parser():
     parser = argparse.ArgumentParser(description='fit mixture model to recall'
                                      ' task experimental data using Stan')
-    parser.add_argument('--data_file', type=str, default='../data/bays_set/',
+    parser.add_argument('--data_file', type=str,
+                        default='../data/spatial_data/dataExp1.csv',
                         help='where to look for the data')
     parser.add_argument('--runfolder', default='./', type=str,
                         help='path to run the script from')
@@ -75,7 +76,7 @@ if __name__ == '__main__':
     dt = str(datetime.datetime.now()).replace(' ', '-')
     fname = args.output_pattern.format(dt)
     fname = os.path.join(args.outfolder, fname)
-    out_dict = {'models':fit_models, 'prior':prior_dict, 'data':data,
+    out_dict = {'models':fit_models, 'prior':prior_dict, 'data':stan_format,
                 'stan':stan_params}
     p.dump(out_dict, open(fname, 'wb'))
     

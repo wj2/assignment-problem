@@ -30,7 +30,7 @@ functions {
     int draw_ind;
     real s_mean;
     vector[n_stim] out_prob;
-
+    real eh;
     real err;
 
     ae_prob = get_ae_probability(db, poss[2:n_stim], n_stim);
@@ -46,7 +46,14 @@ functions {
     }
     draw_ind = categorical_rng(out_prob);
     s_mean = stim_locs[draw_ind];
-    err = normal_rng(s_mean, local_d);
+    eh = normal_rng(s_mean, local_d);
+    if (eh > pi()) {
+      err = eh - 2*pi();
+    } else if (eh < -pi()) {
+      err = eh + 2*pi();
+    } else {
+      err = eh;
+    }
     return err;
   }
   

@@ -141,6 +141,7 @@ generated quantities {
     vector[N] lps;
     vector[N] aep_per;
     int draw_ind;
+    real eh;
     
     subj = subj_id[t];
     n_stim = num_stim[t];
@@ -159,6 +160,13 @@ generated quantities {
     }
     log_lik[t] = log_sum_exp(lps[:n_stim]);
     draw_ind = categorical_rng(aep_per[:n_stim]);
-    err_hat[t] = normal_rng(stim_locs[t, draw_ind], local_d);
+    eh = normal_rng(stim_locs[t, draw_ind], local_d);
+    if (eh > pi()) {
+      err_hat[t] = eh - 2*pi();
+    } else if (eh < -pi()) {
+      err_hat[t] = eh + 2*pi();
+    } else {
+      err_hat[t] = eh;
+    }
   }  
 }

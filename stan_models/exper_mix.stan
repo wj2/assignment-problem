@@ -130,6 +130,7 @@ model {
 
 generated quantities {
   vector[T] log_lik;
+  vector[T] err_hat;
   
   for (t in 1:T) {
     int subj;
@@ -138,6 +139,8 @@ generated quantities {
     real local_d;
     real err;
     vector[N] lps;
+    vector[N] aep_per;
+    int draw_ind;
     
     subj = subj_id[t];
     n_stim = num_stim[t];
@@ -148,10 +151,14 @@ generated quantities {
     err = report_err[t];
 
     lps[1] = log(1 - ae_prob) + normal_lpdf(err | 0, local_d);
+    aep_per[1] = 1 - ae_prob;
     for (i in 2:n_stim) {
       lps[i] = (log(ae_prob/(n_stim - 1))
 		+ normal_lpdf(stim_errs[t, i] | 0, local_d));
+      aep_per[i] = ae_prob/(n_stim - 1);
     }
     log_lik[t] = log_sum_exp(lps[:n_stim]);
+    draw_ind = categorical_rng(aep_per);
+    err_hat[t] = normal_rng(stim_locs[t, draw_ind], local_d);
   }  
 }

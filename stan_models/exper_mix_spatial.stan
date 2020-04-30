@@ -24,25 +24,27 @@ functions {
 
   real report_err_rng(real db, real rb, real md, vector poss, int n_stim,
 		      vector stim_locs) {
-    vector[n_stim] ae_prob;
+    vector[n_stim - 1] ae_prob;
     real local_d;
     real ae_ep;
     int draw_ind;
     real s_mean;
+    vector[n_stim] out_prob;
 
     real err;
 
-    ae_prob[2:] = get_ae_probability(db, poss[2:n_stim], n_stim);
+    ae_prob = get_ae_probability(db, poss[2:n_stim], n_stim);
     local_d = sqrt(md + get_distortion(rb, n_stim));
 
-    ae_ep = sum(ae_prob[2:]);
+    ae_ep = sum(ae_prob);
     if (ae_ep >= 1) {
-      ae_prob[1] = 0;
-      ae_prob[2:] = ae_prob[2:]/ae_ep]);
+      out_prob[1] = 0;
+      out_prob[2:] = ae_prob/ae_ep;
     } else {
-      ae_prob[1] = 1 - ae_ep;
+      out_prob[1] = 1 - ae_ep;
+      out_prob[2:] = ae_prob;
     }
-    draw_ind = categorical_rng(ae_prob);
+    draw_ind = categorical_rng(out_prob);
     s_mean = stim_locs[draw_ind];
     err = normal_rng(s_mean, local_d);
     return err;
@@ -50,26 +52,28 @@ functions {
   
   real compute_log_prob(real err, real db, real rb, real md, vector poss,
 			int n_stim, vector alt_err) {
-    vector[n_stim] ae_prob;
+    vector[n_stim - 1] ae_prob;
     real local_d;
     vector[n_stim] lps;
     real ae_ep;
     int lps_start_ind;
     real sum_lps;
+    vector[n_stim] out_prob;
 
-    ae_prob[2:] = get_ae_probability(db, poss[2:n_stim], n_stim);
+    ae_prob = get_ae_probability(db, poss[2:n_stim], n_stim);
     local_d = sqrt(md + get_distortion(rb, n_stim));
 
-    ae_ep = sum(ae_prob[2:]);
+    ae_ep = sum(ae_prob);
     if (ae_ep >= 1) {
       lps_start_ind = 2;
-      ae_prob[2:] = ae_prob[2:]/ae_ep]);
+      out_prob[2:] = ae_prob/ae_ep;
     } else {
       lps_start_ind = 1;
       lps[1] = log(1 - ae_ep) + normal_lpdf(err | 0, local_d);
+      out_prob[2:] = ae_prob;
     }
     for (i in 2:n_stim) {
-      lps[i] = (log(ae_prob[i])
+      lps[i] = (log(out_prob[i])
 		+ normal_lpdf(alt_err[i] | 0, local_d));
     }
     sum_lps = log_sum_exp(lps[lps_start_ind:]);

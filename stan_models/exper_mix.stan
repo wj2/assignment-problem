@@ -158,7 +158,7 @@ generated quantities {
       aep_per[i] = ae_prob/(n_stim - 1);
     }
     log_lik[t] = log_sum_exp(lps[:n_stim]);
-    draw_ind = categorical_rng(aep_per);
+    draw_ind = categorical_rng(aep_per[:n_stim]);
     err_hat[t] = normal_rng(stim_locs[t, draw_ind], local_d);
   }  
 }

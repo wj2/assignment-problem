@@ -140,13 +140,10 @@ model {
 
 generated quantities {
   vector[T] log_lik;
-  int subj;
-  real sum_lps;
   for (t in 1:T) {
-    subj = subj_id[t];
-    sum_lps = compute_log_prob(report_err[t], dist_bits[subj],
-			       report_bits[subj], mech_dist[subj],
-			       stim_poss[t]', num_stim[t], stim_errs[t]');    
-    log_lik[t] = sum_lps;    
+    int subj = subj_id[t];
+    log_lik[t] = compute_log_prob(report_err[t], dist_bits[subj],
+				  report_bits[subj], mech_dist[subj],
+				  stim_poss[t]', num_stim[t], stim_errs[t]');    
   }
 }

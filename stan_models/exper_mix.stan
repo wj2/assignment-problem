@@ -129,15 +129,16 @@ model {
 }
 
 generated quantities {
-  int subj;
-  int n_stim;
-  real ae_prob;
-  real local_d;
-  real err;
-  vector[N] lps;
   vector[T] log_lik;
   
   for (t in 1:T) {
+    int subj;
+    int n_stim;
+    real ae_prob;
+    real local_d;
+    real err;
+    vector[N] lps;
+    
     subj = subj_id[t];
     n_stim = num_stim[t];
 

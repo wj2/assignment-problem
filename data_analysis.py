@@ -282,13 +282,11 @@ def _get_ae_probabilities(n, report_dists, spatial_dists=None, report_bits=1,
     if n > 1:
         if spatial_dists is None:
             ae_prob, _ = ae_var_discrete(dist_bits, n, spacing=spacing, sz=sz)
-            ae_pm = ae_prob*np.mean(report_dists[1:n]**2 + report_distortion)
-            ae_probs = np.ones(n)*ae_prob
+            ae_probs = np.ones(n)*ae_prob/(n - 1)
             ae_probs[0] = 0
         else:
             ae_probs = ae_spatial_probability(dist_bits, n, spatial_dists)
     else:
-        ae_pm = 0
         ae_probs = np.zeros(n)
     return report_distortion, ae_probs
 
@@ -565,9 +563,6 @@ def ae_var_discrete(loc_b, ns, spacing=np.pi/4, sz=8, tiny_eps=1e-5):
     prob = d.cdf(-spacing) 
     boths, eithers, total = discrete_space(sz, ns)
     ae_likely = prob*boths*2 + prob*eithers
-    # ae_likely = np.min((np.stack(ae_likely),
-    #                     np.ones_like(ae_likely) - tiny_eps),
-    #                    axis=0)
     ae_mag = (1/12)*(np.pi*2)**2
     return ae_likely, ae_mag
 

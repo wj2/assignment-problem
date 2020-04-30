@@ -22,6 +22,32 @@ functions {
     return ae_prob;
   }
 
+  real report_err_rng(real db, real rb, real md, vector poss, int n_stim,
+		      vector stim_locs) {
+    vector[n_stim] ae_prob;
+    real local_d;
+    real ae_ep;
+    int draw_ind;
+    real s_mean;
+
+    real err;
+
+    ae_prob[2:] = get_ae_probability(db, poss[2:n_stim], n_stim);
+    local_d = sqrt(md + get_distortion(rb, n_stim));
+
+    ae_ep = sum(ae_prob[2:]);
+    if (ae_ep >= 1) {
+      ae_prob[1] = 0;
+      ae_prob[2:] = ae_prob[2:]/sum(ae_prob[2:]);
+    } else {
+      ae_prob[1] = 1 - ae_ep;
+    }
+    draw_ind = categorical_rng(ae_prob);
+    s_mean = stim_locs[draw_ind];
+    err = normal_rng(s_mean, local_d);
+    return err;
+  }
+  
   real compute_log_prob(real err, real db, real rb, real md, vector poss,
 			int n_stim, vector alt_err) {
     vector[n_stim] ae_prob;
@@ -31,13 +57,13 @@ functions {
     int lps_start_ind;
     real sum_lps;
 
-    ae_prob[2:n_stim] = get_ae_probability(db, poss[2:n_stim], n_stim);
+    ae_prob[2:] = get_ae_probability(db, poss[2:n_stim], n_stim);
     local_d = sqrt(md + get_distortion(rb, n_stim));
 
-    ae_ep = sum(ae_prob[2:n_stim]);
+    ae_ep = sum(ae_prob[2:]);
     if (ae_ep >= 1) {
       lps_start_ind = 2;
-      ae_prob[2:n_stim] = ae_prob[2:n_stim]/sum(ae_prob[2:n_stim]);
+      ae_prob[2:] = ae_prob[2:]/sum(ae_prob[2:]);
     } else {
       lps_start_ind = 1;
       lps[1] = log(1 - ae_ep) + normal_lpdf(err | 0, local_d);
@@ -46,7 +72,7 @@ functions {
       lps[i] = (log(ae_prob[i])
 		+ normal_lpdf(alt_err[i] | 0, local_d));
     }
-    sum_lps = log_sum_exp(lps[lps_start_ind:n_stim]);
+    sum_lps = log_sum_exp(lps[lps_start_ind:]);
     return sum_lps;
   }
 }
@@ -77,7 +103,7 @@ data {
   vector[T] report_err; // dist from target
   int<lower=1, upper=N> num_stim[T]; // number of stimuli on each trial
   matrix[T, N] stim_locs; // relative locations of stimuli in report space
-  matrix[T, N] stim_poss; // relative locations of stimuli in report space
+  matrix[T, N] stim_poss; // relative locations of stimuli in cue space
   int<lower=1, upper=S> subj_id[T];
   matrix[T, N] stim_errs; // errors relative to each stimulus 
 }
@@ -140,10 +166,14 @@ model {
 
 generated quantities {
   vector[T] log_lik;
+  vector[T] err_hat;
   for (t in 1:T) {
     int subj = subj_id[t];
     log_lik[t] = compute_log_prob(report_err[t], dist_bits[subj],
 				  report_bits[subj], mech_dist[subj],
-				  stim_poss[t]', num_stim[t], stim_errs[t]');    
+				  stim_poss[t]', num_stim[t], stim_errs[t]');
+    err_hat[t] = report_err_rng(dist_bits[subj], report_bits[subj],
+				mech_dist[subj], stim_poss[t]', num_stim[t],
+				stim_locs[t]');
   }
 }

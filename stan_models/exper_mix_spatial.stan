@@ -38,7 +38,7 @@ functions {
     ae_ep = sum(ae_prob[2:]);
     if (ae_ep >= 1) {
       ae_prob[1] = 0;
-      ae_prob[2:] = ae_prob[2:]/sum(ae_prob[2:]);
+      ae_prob[2:] = ae_prob[2:]/ae_ep]);
     } else {
       ae_prob[1] = 1 - ae_ep;
     }
@@ -63,7 +63,7 @@ functions {
     ae_ep = sum(ae_prob[2:]);
     if (ae_ep >= 1) {
       lps_start_ind = 2;
-      ae_prob[2:] = ae_prob[2:]/sum(ae_prob[2:]);
+      ae_prob[2:] = ae_prob[2:]/ae_ep]);
     } else {
       lps_start_ind = 1;
       lps[1] = log(1 - ae_ep) + normal_lpdf(err | 0, local_d);

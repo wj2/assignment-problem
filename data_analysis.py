@@ -241,6 +241,12 @@ mix_man = {'observed_data':'report_err',
            'dims':{'report_bits':['subject'],
                    'dist_bits':['subject'],
                    'mech_mse':['subject']}}
+mix_uniform_man = {'observed_data':'report_err',
+                   'log_likelihood':{'report_err':'log_lik'},
+                   'dims':{'report_bits':['subject'],
+                           'dist_bits':['subject'],
+                           'mech_mse':['subject'],
+                           'encoding_rate':['subject']}}
 mix_spatial_man = {'observed_data':'report_err',
                    'log_likelihood':{'report_err':'log_lik'},
                    'posterior_predictive':'err_hat',
@@ -250,7 +256,8 @@ mix_spatial_man = {'observed_data':'report_err',
 
 arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
                    'exper_mix.pkl':mix_man,
-                   'exper_mix_spatial.pkl':mix_spatial_man}
+                   'exper_mix_spatial.pkl':mix_spatial_man,
+                   'exper_mix_uniform.pkl':mix_uniform_man}
 
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
 spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'

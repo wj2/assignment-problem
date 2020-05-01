@@ -59,21 +59,30 @@ if __name__ == '__main__':
     rbmv = 10
     rbvm = 2
     rbvv = 10
+    
     dbmm = rbmm
     dbmv = rbmv
     dbvm = rbvm
     dbvv = rbvv
+    
     mdmm = 1
     mdmv = 2
     mdvm = 1
     mdvv = 1
+
+    enmm = 4
+    enmv = 2
+    envm = 2
+    envv = 2
 
     prior_dict = {'report_bits_mean_mean':rbmm, 'report_bits_mean_var':rbmv,
                   'report_bits_var_mean':rbvm, 'report_bits_var_var':rbvv,
                   'dist_bits_mean_mean':dbmm, 'dist_bits_mean_var':dbmv,
                   'dist_bits_var_mean':dbvm, 'dist_bits_var_var':dbvv,
                   'mech_dist_mean_mean':mdmm, 'mech_dist_mean_var':mdmv,
-                  'mech_dist_var_mean':mdvm, 'mech_dist_var_var':mdvv}
+                  'mech_dist_var_mean':mdvm, 'mech_dist_var_var':mdvv,
+                  'encoding_rate_mean_mean':enmm, 'encoding_rate_mean_var':enmv,
+                  'encoding_rate_var_mean':envm, 'encoding_rate_var_var':envv}
     
     fits_dict = {}
     for k, v in stan_format.items():

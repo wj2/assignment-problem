@@ -19,6 +19,7 @@ def setup():
     gps.set_paper_style(colors)
     
 def figure1(basefolder=bf, gen_panels=None, data=None):
+    setup()
     if gen_panels is None:
         gen_panels = ('a', 'b', 'c', 'd', 'e', 'f')
     if data is None:
@@ -71,6 +72,7 @@ def figure1(basefolder=bf, gen_panels=None, data=None):
     return data
 
 def figure2(basefolder=bf, gen_panels=None, data=None):
+    setup()
     if gen_panels is None:
         gen_panels = ('a', 'b', 'c', 'de')
     if data is None:
@@ -125,6 +127,7 @@ def figure2(basefolder=bf, gen_panels=None, data=None):
     return data
 
 def figure3(basefolder=bf, gen_panels=None, data=None):
+    setup()
     if gen_panels is None:
         gen_panels = ('a', 'b', 'c', 'd', 'ef')
     if data is None:
@@ -205,6 +208,7 @@ def figure3(basefolder=bf, gen_panels=None, data=None):
     return data
 
 def figure4(basefolder=bf, gen_panels=None, data=None):
+    setup()
     if gen_panels is None:
         gen_panels = ('a', 'bc')
     if data is None:
@@ -261,6 +265,7 @@ def figure4(basefolder=bf, gen_panels=None, data=None):
     return data
 
 def figure5(basefolder=bf, gen_panels=None, data=None):
+    setup()
     if gen_panels is None:
         gen_panels = ('abcde', 'f')
     if data is None:
@@ -344,6 +349,7 @@ def figure5(basefolder=bf, gen_panels=None, data=None):
 def figure6(basefolder=bf, datapath1=None, modelpath1=None,
             modelpath2=None, m_pattern1=None, m_pattern2=None,
             gen_panels=None, data=None):
+    setup()
     if gen_panels is None:
         gen_panels = ('a', 'b', 'c', 'de', 'f')
     if data is None:

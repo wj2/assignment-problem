@@ -235,14 +235,14 @@ generated quantities {
 		+ normal_lpdf(err | 0, local_d));
 
       // probability that target was encoded, but made AE
-      for (i in 3:n_enc + 1) {
-	lps[i] = (log(1 - unif_prob) + log(ae_prob/(n_enc - 1))
+      for (i in 3:n_stim + 1) {
+	lps[i] = (log(1 - unif_prob) + log(ae_prob/(n_stim - 1))
 		  + normal_lpdf(stim_errs[t, i - 1] | 0, local_d));
       }
 
       // totalling up
       enc_lps[n_enc+1] = (enc_lprob
-			  + log_sum_exp(lps[lps_start_ind:n_enc+1]));
+			  + log_sum_exp(lps[lps_start_ind:n_stim+1]));
     }
     log_lik[t] = log_sum_exp(enc_lps[:n_stim+1]);
   }

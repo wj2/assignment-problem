@@ -147,6 +147,9 @@ model {
 
       // probability that this many stimuli were encoded
       enc_lprob = poisson_lpmf(n_enc | encoding_rate[subj]);
+      if (n_enc == n_stim) {
+	enc_lprob += poisson_lccdf(n_enc + 1 | encoding_rate[subj]);
+      }
 
       // ae_prob and distortion for that many stimuli
       ae_prob = get_ae_probability(dist_bits[subj], n_enc, N, stim_spacing);
@@ -213,6 +216,9 @@ generated quantities {
 
       // probability that this many stimuli were encoded
       enc_lprob = poisson_lpmf(n_enc | encoding_rate[subj]);
+      if (n_enc == n_stim) {
+	enc_lprob += poisson_lccdf(n_enc + 1 | encoding_rate[subj]);
+      }
 
       // ae_prob and distortion for that many stimuli
       ae_prob = get_ae_probability(dist_bits[subj], n_enc, N, stim_spacing);

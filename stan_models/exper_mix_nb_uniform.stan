@@ -86,10 +86,10 @@ parameters {
   real<lower=0> encoding_rate_var;
 
   // data-related
-  vector<lower=0>[S] report_mse1_raw;
-  vector<lower=0>[S] dist_mse1_raw;
-  vector<lower=0>[S] mech_mse_raw;
-  vector<lower=0>[S] encoding_rate_raw;
+  vector[S] report_mse1_raw;
+  vector[S] dist_mse1_raw;
+  vector[S] mech_mse_raw;
+  vector[S] encoding_rate_raw;
 }
 
 transformed parameters {

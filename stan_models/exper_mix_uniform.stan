@@ -111,6 +111,7 @@ model {
   vector[N+1] enc_lps;
   real enc_lprob;
   real unif_prob;
+  int lps_end;
   
   // priors
   report_bits_var ~ normal(report_bits_var_mean, report_bits_var_var);
@@ -171,15 +172,18 @@ model {
       lps[2] = (log(1 - unif_prob) + log(1 - ae_prob)
 		+ normal_lpdf(err | 0, local_d));
 
-      // probability that target was encoded, but made AE
-      for (i in 3:n_enc + 1) {
-	lps[i] = (log(1 - unif_prob) + log(ae_prob/(n_enc - 1))
-		  + normal_lpdf(stim_errs[t, i - 1] | 0, local_d));
+      if (n_enc > 1) {
+	for (i in 3:n_stim + 1) {
+	  lps[i] = (log(1 - unif_prob) + log(ae_prob/(n_stim - 1))
+		    + normal_lpdf(stim_errs[t, i - 1] | 0, local_d));
+	}
+	lps_end = n_stim + 1;
+      } else {
+	lps_end = 2;
       }
-
       // totalling up
       enc_lps[n_enc+1] = (enc_lprob
-			  + log_sum_exp(lps[lps_start_ind:n_enc+1]));
+			  + log_sum_exp(lps[lps_start_ind:lps_end]));
     }
     target += log_sum_exp(enc_lps[:n_stim+1]);
   }
@@ -201,6 +205,7 @@ generated quantities {
     vector[N+1] enc_lps;
     real enc_lprob;
     real unif_prob;
+    int lps_end;
 
     subj = subj_id[t];
     n_stim = num_stim[t];
@@ -241,14 +246,18 @@ generated quantities {
 		+ normal_lpdf(err | 0, local_d));
 
       // probability that target was encoded, but made AE
-      for (i in 3:n_stim + 1) {
-	lps[i] = (log(1 - unif_prob) + log(ae_prob/(n_stim - 1))
-		  + normal_lpdf(stim_errs[t, i - 1] | 0, local_d));
+      if (n_enc > 1) {
+	for (i in 3:n_stim + 1) {
+	  lps[i] = (log(1 - unif_prob) + log(ae_prob/(n_stim - 1))
+		    + normal_lpdf(stim_errs[t, i - 1] | 0, local_d));
+	}
+	lps_end = n_stim + 1;
+      } else {
+	lps_end = 2;
       }
-
       // totalling up
       enc_lps[n_enc+1] = (enc_lprob
-			  + log_sum_exp(lps[lps_start_ind:n_stim+1]));
+			  + log_sum_exp(lps[lps_start_ind:lps_end]));
     }
     log_lik[t] = log_sum_exp(enc_lps[:n_stim+1]);
   }

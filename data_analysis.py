@@ -257,7 +257,8 @@ mix_spatial_man = {'observed_data':'report_err',
 arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
                    'exper_mix.pkl':mix_man,
                    'exper_mix_spatial.pkl':mix_spatial_man,
-                   'exper_mix_uniform.pkl':mix_uniform_man}
+                   'exper_mix_uniform.pkl':mix_uniform_man,
+                   'exper_mix_nb_uniform.pkl':mix_uniform_man}
 
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
 spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'

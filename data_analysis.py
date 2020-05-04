@@ -243,6 +243,7 @@ mix_man = {'observed_data':'report_err',
                    'mech_mse':['subject']}}
 mix_uniform_man = {'observed_data':'report_err',
                    'log_likelihood':{'report_err':'log_lik'},
+                   'posterior_predictive':'err_hat',
                    'dims':{'report_bits':['subject'],
                            'dist_bits':['subject'],
                            'mech_mse':['subject'],

@@ -210,6 +210,7 @@ model {
 
 generated quantities {
   vector[T] log_lik;
+  vector[T] err_hat; 
   // var declarations
   
   for (t in 1:T) {
@@ -227,12 +228,21 @@ generated quantities {
     real ne_prob;
     real ninf_prob;
     int lps_end;
+    int ec;
+    real eh;
+    int draw_ind;
+    vector[N - 1] vp;
 
     subj = subj_id[t];
     n_stim = num_stim[t];
 
+	
     err = report_err[t];
 
+    ec = min(poisson_rng(encoding_rate[subj]), N);
+    if (ec == 0) {
+      eh = uniform_rng(-pi(), pi());
+    }
     // probability of zero encoding, total lapse
     enc_lps[1] = (poisson_lpmf(0 | encoding_rate[subj])
 		  + uniform_lpdf(err | -pi(), pi()));
@@ -258,6 +268,18 @@ generated quantities {
       unif_prob = n_enc;
       unif_prob = 1 - unif_prob/n_stim;
 
+      if (ec == n_enc) {
+	if (bernoulli_rng(unif_prob) == 1) {
+	  eh = uniform_rng(-pi(), pi());
+	} else if (bernoulli_rng(ae_prob) == 0 || n_enc == 1) {
+	  eh = normal_rng(0, local_d);
+	} else {
+	  vp[:n_stim - 1] = rep_vector(1.0/(n_stim - 1), n_stim - 1);
+	  draw_ind = categorical_rng(vp[:n_stim - 1]);
+	  eh = normal_rng(stim_locs[t, draw_ind + 1], local_d);
+	}
+      }
+      
       if (unif_prob > 0) { // if non-zero prob, account for it!
 	lps[1] = log(unif_prob) + uniform_lpdf(err | -pi(), pi());
 	lps_start_ind = 1;
@@ -282,6 +304,13 @@ generated quantities {
       // totalling up
       enc_lps[n_enc+1] = (enc_lprob
 			  + log_sum_exp(lps[lps_start_ind:lps_end]));
+    }
+    if (eh > pi()) {
+      err_hat[t] = eh - 2*pi();
+    } else if (eh < -pi()) {
+      err_hat[t] = eh + 2*pi();
+    } else {
+      err_hat[t] = eh;
     }
     log_lik[t] = log_sum_exp(enc_lps[:n_stim+1]);
   }

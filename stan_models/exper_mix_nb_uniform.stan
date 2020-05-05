@@ -239,7 +239,7 @@ generated quantities {
 	
     err = report_err[t];
 
-    ec = min(poisson_rng(encoding_rate[subj]), N);
+    ec = min(poisson_rng(encoding_rate[subj]), n_stim);
     if (ec == 0) {
       eh = uniform_rng(-pi(), pi());
     }

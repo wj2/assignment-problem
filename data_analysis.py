@@ -234,32 +234,41 @@ mix_nb_man = {'observed_data':'report_err',
               'posterior_predictive':'err_hat',
               'dims':{'report_bits':['subject'],
                       'dist_bits':['subject'],
-                      'mech_mse':['subject']}}
+                      'mech_dist':['subject']}}
 mix_man = {'observed_data':'report_err',
            'log_likelihood':{'report_err':'log_lik'},
            'posterior_predictive':'err_hat',
            'dims':{'report_bits':['subject'],
                    'dist_bits':['subject'],
-                   'mech_mse':['subject']}}
+                   'mech_dist':['subject']}}
 mix_uniform_man = {'observed_data':'report_err',
                    'log_likelihood':{'report_err':'log_lik'},
                    'posterior_predictive':'err_hat',
                    'dims':{'report_bits':['subject'],
                            'dist_bits':['subject'],
-                           'mech_mse':['subject'],
+                           'mech_dist':['subject'],
                            'encoding_rate':['subject']}}
+mix_uniform_lapse_man = {'observed_data':'report_err',
+                         'log_likelihood':{'report_err':'log_lik'},
+                         'posterior_predictive':'err_hat',
+                         'dims':{'report_bits':['subject'],
+                                 'dist_bits':['subject'],
+                                 'mech_dist':['subject'],
+                                 'encoding_rate':['subject'],
+                                 'lapse_rate':['subject']}}
 mix_spatial_man = {'observed_data':'report_err',
                    'log_likelihood':{'report_err':'log_lik'},
                    'posterior_predictive':'err_hat',
                    'dims':{'report_bits':['subject'],
                            'dist_bits':['subject'],
-                           'mech_mse':['subject']}}
+                           'mech_dist':['subject']}}
 
 arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
                    'exper_mix.pkl':mix_man,
                    'exper_mix_spatial.pkl':mix_spatial_man,
                    'exper_mix_uniform.pkl':mix_uniform_man,
-                   'exper_mix_nb_uniform.pkl':mix_uniform_man}
+                   'exper_mix_nb_uniform.pkl':mix_uniform_man,
+                   'exper_mix_nbu_lapse.pkl':mix_uniform_lapse_man}
 
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
 spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'

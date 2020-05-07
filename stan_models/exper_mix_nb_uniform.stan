@@ -190,7 +190,6 @@ model {
 		+ normal_lpdf(err | 0, local_d));
 
       // probability that target was encoded, but made AE
-      // not representing randomness in stim choice...
       if (n_enc > 1) {
 	for (i in 3:n_stim + 1) {
 	  lps[i] = (log(1 - unif_prob) + log(ae_prob/(n_stim - 1))

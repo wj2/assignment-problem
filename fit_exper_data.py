@@ -75,10 +75,10 @@ if __name__ == '__main__':
     envm = 2
     envv = 1
 
-    lrbk = 2
-    lrbt = 2
-    lrak = 2
-    lrat = 2
+    lrbk = 7.5
+    lrbt = .5
+    lrak = 1
+    lrat = .5
 
     prior_dict = {'report_bits_mean_mean':rbmm, 'report_bits_mean_var':rbmv,
                   'report_bits_var_mean':rbvm, 'report_bits_var_var':rbvv,

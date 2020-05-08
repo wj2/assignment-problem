@@ -167,7 +167,8 @@ model {
     err = report_err[t];
 
     // probability of zero encoding, total lapse
-    enc_lps[1] = (log_sum_exp(poisson_lpmf(0 | encoding_rate[subj]),
+    enc_lps[1] = (log_sum_exp(log(1 - lapse_rate[subj])
+			      + poisson_lpmf(0 | encoding_rate[subj]),
 			      log_lapse_rate[subj])
 		  + uniform_lpdf(err | -pi(), pi()));
 

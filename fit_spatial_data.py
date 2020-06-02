@@ -60,17 +60,24 @@ if __name__ == '__main__':
     mdmv = 5
     mdvm = 5
     mdvv = 10
+    ermm = 1
+    ermv = 5
+    ervm = 5
+    ervv = 10
 
+    
     prior_dict = {'report_bits_mean_mean':rbmm, 'report_bits_mean_var':rbmv,
                   'report_bits_var_mean':rbvm, 'report_bits_var_var':rbvv,
                   'dist_bits_mean_mean':dbmm, 'dist_bits_mean_var':dbmv,
                   'dist_bits_var_mean':dbvm, 'dist_bits_var_var':dbvv,
                   'mech_dist_mean_mean':mdmm, 'mech_dist_mean_var':mdmv,
-                  'mech_dist_var_mean':mdvm, 'mech_dist_var_var':mdvv}
+                  'mech_dist_var_mean':mdvm, 'mech_dist_var_var':mdvv,
+                  'enc_rate_mean_mean':ermm, 'enc_rate_mean_var':ermv,
+                  'enc_rate_var_mean':ervm, 'enc_rate_var_var':ervv}
     
     fits_dict = {}
     for k, v in stan_format.items():
-        f = da.fit_stan_model(v, prior_dict, model_path=da.spatial_model,
+        f = da.fit_stan_model(v, prior_dict, model_path=da.spatial_model_guess,
                               **stan_params)
         fits_dict[k] = f
         

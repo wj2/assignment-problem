@@ -70,7 +70,7 @@ if __name__ == '__main__':
     mdvm = .5
     mdvv = .5
 
-    enmm = 4
+    enmm = 3
     enmv = 2
     envm = 2
     envv = 1

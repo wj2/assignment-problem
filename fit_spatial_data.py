@@ -60,7 +60,7 @@ if __name__ == '__main__':
     mdmv = 5
     mdvm = 5
     mdvv = 10
-    ermm = 1
+    ermm = 5
     ermv = 5
     ervm = 5
     ervv = 10

@@ -35,16 +35,20 @@ functions {
     real eh;
     real err;
 
-    ae_prob = get_ae_probability(db, poss[2:n_stim], mem_stim);
     local_d = sqrt(md + get_distortion(rb, mem_stim));
 
-    ae_ep = sum(ae_prob);
-    if (ae_ep >= 1) {
-      out_prob[1] = 0;
-      out_prob[2:] = ae_prob/ae_ep;
+    if (mem_stim == 1) {
+      out_prob = rep_vector(1./n_stim, n_stim);
     } else {
-      out_prob[1] = 1 - ae_ep;
-      out_prob[2:] = ae_prob;
+      ae_prob = get_ae_probability(db, poss[2:n_stim], mem_stim);
+      ae_ep = sum(ae_prob);
+      if (ae_ep >= 1) {
+	out_prob[1] = 0;
+	out_prob[2:] = ae_prob/ae_ep;
+      } else {
+	out_prob[1] = 1 - ae_ep;
+	out_prob[2:] = ae_prob;
+      }
     }
     draw_ind = categorical_rng(out_prob);
     s_mean = stim_locs[draw_ind];
@@ -64,7 +68,11 @@ functions {
     int mem_stim;
     real err;
     mem_stim = min(n_stim, poisson_rng(enc_rate));
-    err = report_err_nenc_rng(db, rb, md, poss, n_stim, stim_locs, mem_stim);
+    if (mem_stim == 0) {
+      err = uniform_rng(-pi(), pi());
+    } else {
+      err = report_err_nenc_rng(db, rb, md, poss, n_stim, stim_locs, mem_stim);
+    }
     return err;
   }
 
@@ -78,7 +86,6 @@ functions {
     real sum_lps;
     vector[n_stim] out_prob;
 
-    ae_prob = get_ae_probability(db, poss[2:n_stim], mem_stim);
     local_d = sqrt(md + get_distortion(rb, mem_stim));
 
     if (mem_stim == 1) {
@@ -86,6 +93,7 @@ functions {
       lps_start_ind = 1;
       out_prob = rep_vector((n_stim - 1.)/n_stim, n_stim);
     } else {
+      ae_prob = get_ae_probability(db, poss[2:n_stim], mem_stim);
       ae_ep = sum(ae_prob);
       if (ae_ep >= 1) {
 	lps_start_ind = 2;

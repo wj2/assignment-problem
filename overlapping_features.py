@@ -9,54 +9,88 @@ import scipy.optimize as sio
 
 import general.utility as u
 
-def simulate_estimates(p, s, pop_ests):
-    pts = np.random.uniform(0, p, (s, 1))
-    est_ns = np.random.normal(0, np.sqrt(pop_ests), (s, len(pop_ests)))
+def fixed_distance_errors(d, dx, dy, n_ests=1000, p=100, c=1, boot=False):
+    err = np.zeros(n_ests)
+    pop_ests = np.array((dx, dy))
+    for i in range(n_ests):
+        est = simulate_estimates(p, 2, pop_ests, c=c, fixed_dist=d)
+        ad, base = assign_estimates_2pop(est)
+        err[i] = np.any(ad < base)
+    if boot:
+        err = u.bootstrap_on_axis(err, u.mean_axis0, axis=0, n=n_ests)
+    return err
+
+def fixed_distance_ds_dxdy(ds, dxs, dys, n_ests=1000, p=100, c=1, boot=True):
+    errs = np.zeros((len(ds), len(dxs), n_ests))
+    for i, d in enumerate(ds):
+        for j, dx_j in enumerate(dxs):
+            dy_j = dys[j]
+            errs[i, j] = fixed_distance_errors(d, dx_j, dy_j, n_ests=n_ests,
+                                               p=p, c=c, boot=boot)
+    return errs
+
+def simulate_estimates(p, s, pop_ests, c=1, constrain=False, fixed_dist=None):
+    if fixed_dist is not None:
+        pts = np.zeros((2, c, 1))
+        d_dim = np.sqrt((fixed_dist**2)/c)
+        pts[1] = d_dim
+    else:
+        pts = np.random.uniform(0, p, (s, c, 1))
+    est_ns = np.random.normal(0, np.sqrt(pop_ests), (s, c, len(pop_ests)))
     ests = pts + est_ns
+    if constrain:
+        ests[ests < 0] = 0
+        ests[ests > p] = p
     return ests
 
 def calculate_distance(ests):
-    cs = it.combinations(range(ests.shape[1]), 2)
+    cs = it.combinations(range(ests.shape[2]), 2)
     dist = 0
     for c in cs:
-        sub_est = np.abs(ests[:, c[0]] - ests[:, c[1]])
+        sub_est = np.sum((ests[..., c[0]] - ests[..., c[1]])**2, axis=1)
         dist = dist + np.sum(sub_est)
     return dist
 
 def assign_estimates_2pop(ests):
-    s, pops = ests.shape
+    s, c, pops = ests.shape
     assert pops == 2
     baseline = calculate_distance(ests)
     perturbs = list(it.combinations(range(s), 2))
     assign_dists = np.zeros(len(perturbs))
+    shuff_ests = np.zeros_like(ests)
     for i, p in enumerate(perturbs):
-        ests[p[1], 0], ests[p[0], 0] = ests[p[0], 0], ests[p[1], 0]
-        assign_dists[i] = calculate_distance(ests)
-        ests[p[1], 0], ests[p[0], 0] = ests[p[0], 0], ests[p[1], 0]
+        shuff_ests[:, :, :] = ests[:, :, :]
+        shuff_ests[p[1], :, 0] = ests[p[0], :, 0]
+        shuff_ests[p[0], :, 0] = ests[p[1], :, 0]
+        assign_dists[i] = calculate_distance(shuff_ests)
     return assign_dists, baseline
 
-def estimate_assignment_error(p, s, pop_ests, n=500):
+def estimate_ae_full(p, n_stim, delta, ds, c, n_ests=1000):
+    pop_ests = dxdy_from_dsdelt(ds, delta)
+    return estimate_assignment_error(p, n_stim, pop_ests, c=c, n=n_ests)
+
+def estimate_assignment_error(p, s, pop_ests, c=1, n=500):
     err = np.zeros(n)
     for i in range(n):
-        est = simulate_estimates(p, s, pop_ests)
+        est = simulate_estimates(p, s, pop_ests, c=c)
         ad, base = assign_estimates_2pop(est)
         err[i] = np.any(ad < base)
     return err
 
-def estimate_ae_sr_range(s, srs, n_pops=2, n=500, p=100, boot=True):
+def estimate_ae_sr_range(s, srs, n_pops=2, n=500, p=100, boot=True, c=1):
     errs = np.zeros((n, len(srs)))
     for i, sr in enumerate(srs):
         pop_est = (p/sr)**2
         pop_ests = (pop_est,)*n_pops
-        errs[:, i] = estimate_assignment_error(p, s, pop_ests, n=n)
+        errs[:, i] = estimate_assignment_error(p, s, pop_ests, n=n, c=c)
     if boot:
         errs = u.bootstrap_on_axis(errs, u.mean_axis0, axis=0, n=n)
     return errs
 
-def estimate_ae_sr_s_ranges(esses, srs, n_pops=2, n=500, p=100, boot=True):
+def estimate_ae_sr_s_ranges(esses, srs, n_pops=2, n=500, p=100, c=1, boot=True):
     errs = np.zeros((len(esses), n, len(srs)))
     for i, s in enumerate(esses):
-        errs[i] = estimate_ae_sr_range(s, srs, n_pops=n_pops, n=n, p=p,
+        errs[i] = estimate_ae_sr_range(s, srs, n_pops=n_pops, n=n, p=p, c=c,
                                        boot=boot)
     return errs
 
@@ -317,8 +351,10 @@ def ae_integ(esses, d1, d2, p=1, integ_start=0, integ_end=None, dist_pdf=None,
         d2_i = d2[i]
         def _f(x):
             v1 = dist_pdf(x)
-            v2 = sts.norm(x, np.sqrt(d1_i + d2_i)).cdf(0)
-            v = v1*v2
+            # v2 = sts.norm(x, np.sqrt(d1_i + d2_i)).cdf(0)
+            v2 = sts.norm(x, np.sqrt(2*d1_i)).cdf(0)
+            v3 = sts.norm(x, np.sqrt(2*d2_i)).cdf(0)
+            v = v1*(v2 + v3 - 2*v2*v3)
             return v
            
         pes[i], err = sin.quad(_f, integ_start, integ_end)

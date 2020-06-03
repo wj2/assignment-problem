@@ -19,7 +19,8 @@ functions {
     distortion = get_distortion(bits, mem_stim);
     se_lprob = log((mem_stim - 1.)/n);
     for (i in 1:n) {
-      ae_prob[i] = exp(se_lprob + normal_lcdf(-dist[i] | 0, sqrt(distortion)));
+      ae_prob[i] = exp(se_lprob + normal_lcdf(-fabs(dist[i])
+					      | 0, sqrt(distortion)));
     }
     return ae_prob;
   }
@@ -83,6 +84,8 @@ functions {
     vector[n_stim] lps;
     real ae_ep;
     int lps_start_ind;
+    real t_enc_lps;
+    real nt_enc_lps;
     real sum_lps;
     vector[n_stim] out_prob;
 
@@ -108,7 +111,9 @@ functions {
       lps[i] = (log(out_prob[i])
 		+ normal_lpdf(alt_err[i] | 0, local_d));
     }
-    sum_lps = log_sum_exp(lps[lps_start_ind:]);
+    t_enc_lps = log(1.*mem_stim/n_stim) + log_sum_exp(lps[lps_start_ind:]);
+    nt_enc_lps = log(1 - 1.*mem_stim/n_stim) + uniform_lpdf(err | -pi(), pi());
+    sum_lps = log_sum_exp(t_enc_lps, nt_enc_lps);
     return sum_lps;
   }
   

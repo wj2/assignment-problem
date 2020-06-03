@@ -90,10 +90,11 @@ def add_relative_positions(data, err_field='error_vec',
     return data
 
 def normalize_range(diff):
-    if diff > np.pi:
-        diff = -np.pi + (diff - np.pi)
-    elif diff < -np.pi:
-        diff = np.pi + (diff + np.pi)
+    diff = np.array(diff)
+    g_mask = diff > np.pi
+    l_mask = diff < -np.pi
+    diff[g_mask] = -np.pi + (diff[g_mask] - np.pi)
+    diff[l_mask] = np.pi + (diff[l_mask] + np.pi)
     return diff
 
 def infer_relative_positions(data, err_field='error_vec',
@@ -176,8 +177,8 @@ def load_spatial_data_stan(file_, sort_pos=True, n_stim=6,
                   for i in range(n_stim - 1))
     cnames = ['targetColor'] + cnames
     col_locs = np.array(data[cnames])
-    sd['stim_locs'] = np.abs(col_locs - col_locs[:, 0:1]) % np.pi
-    errs = np.abs(np.expand_dims(data['responseColor'], 1) - col_locs) % np.pi
+    sd['stim_locs'] = normalize_range(col_locs - col_locs[:, 0:1])
+    errs = normalize_range(np.expand_dims(data['responseColor'], 1) - col_locs)
     sd['stim_errs'] = errs
     sd['report_err'] = errs[:, 0]
 
@@ -185,7 +186,7 @@ def load_spatial_data_stan(file_, sort_pos=True, n_stim=6,
                   for i in range(n_stim - 1))
     cnames = ['targetLocation'] + cnames
     pos_locs = np.array(data[cnames])
-    sd['stim_poss'] = np.abs(pos_locs - pos_locs[:, 0:1]) % np.pi
+    sd['stim_poss'] = normalize_range(pos_locs - pos_locs[:, 0:1])
 
     sd['S'] = len(np.unique(data['subject']))
     sd['N'] = n_stim

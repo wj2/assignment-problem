@@ -270,6 +270,12 @@ mix_spatial_sg_man = {'observed_data':'report_err',
                               'dist_bits':['subject'],
                               'mech_dist':['subject'],
                               'enc_rate':['subject']}}
+mix_snmd = {'observed_data':'report_err',
+            'log_likelihood':{'report_err':'log_lik'},
+            'posterior_predictive':'err_hat',
+            'dims':{'report_bits':['subject'],
+                    'dist_bits':['subject'],
+                    'enc_rate':['subject']}}
 
 arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
                    'exper_mix.pkl':mix_man,
@@ -277,11 +283,13 @@ arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
                    'exper_mix_sguess.pkl':mix_spatial_sg_man,
                    'exper_mix_uniform.pkl':mix_uniform_man,
                    'exper_mix_nb_uniform.pkl':mix_uniform_man,
-                   'exper_mix_nbu_lapse.pkl':mix_uniform_lapse_man}
+                   'exper_mix_nbu_lapse.pkl':mix_uniform_lapse_man,
+                   'exper_mix_snmd.pkl':mix_snmd}
 
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
 spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'
 spatial_model_guess = 'assignment/stan_models/exper_mix_sguess.pkl'
+spatial_model_snmd = 'assignment/stan_models/exper_mix_snmd.pkl'
 def fit_stan_model(stan_data, prior_dict, model_path=assignment_model,
                    **stan_params):
     fit_dict = {}

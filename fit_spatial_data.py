@@ -48,10 +48,14 @@ if __name__ == '__main__':
                'max_treedepth':args.max_treedepth}
     stan_params = {'iter':args.length, 'control':control, 'chains':args.chains}
     
-    rbmm = 200
-    rbmv = 100
-    rbvm = 10
-    rbvv = 100
+    # rbmm = 200
+    # rbmv = 100
+    # rbvm = 10
+    # rbvv = 100
+    rbmm = 6
+    rbmv = 10
+    rbvm = 5
+    rbvv = 10
     dbmm = 6
     dbmv = 10
     dbvm = 5
@@ -79,7 +83,7 @@ if __name__ == '__main__':
     
     fits_dict = {}
     for k, v in stan_format.items():
-        f = da.fit_stan_model(v, prior_dict, model_path=da.spatial_model_guess,
+        f = da.fit_stan_model(v, prior_dict, model_path=da.spatial_model_snmd,
                               init=all_inits,
                               **stan_params)
         fits_dict[k] = f

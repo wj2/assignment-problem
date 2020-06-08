@@ -92,9 +92,8 @@ functions {
     local_d = sqrt(md + get_distortion(rb, mem_stim));
 
     if (mem_stim == 1) {
-      lps[1] = log(1./n_stim) + normal_lpdf(err | 0, local_d);
-      lps_start_ind = 1;
-      out_prob = rep_vector((n_stim - 1.)/n_stim, n_stim);
+      t_enc_lps = log(1./n_stim) + normal_lpdf(err | 0, local_d);
+      nt_enc_lps = log(1 - 1./n_stim) + uniform_lpdf(err | -pi(), pi());
     } else {
       ae_prob = get_ae_probability(db, poss[2:n_stim], mem_stim);
       ae_ep = sum(ae_prob);
@@ -106,13 +105,14 @@ functions {
 	lps[1] = log(1 - ae_ep) + normal_lpdf(err | 0, local_d);
 	out_prob[2:] = ae_prob;
       }
+      for (i in 2:n_stim) {
+	lps[i] = (log(out_prob[i])
+		  + normal_lpdf(alt_err[i] | 0, local_d));
+      }
+      t_enc_lps = log(1.*mem_stim/n_stim) + log_sum_exp(lps[lps_start_ind:]);
+      nt_enc_lps = (log(1 - 1.*mem_stim/n_stim)
+		    + uniform_lpdf(err | -pi(), pi()));
     }
-    for (i in 2:n_stim) {
-      lps[i] = (log(out_prob[i])
-		+ normal_lpdf(alt_err[i] | 0, local_d));
-    }
-    t_enc_lps = log(1.*mem_stim/n_stim) + log_sum_exp(lps[lps_start_ind:]);
-    nt_enc_lps = log(1 - 1.*mem_stim/n_stim) + uniform_lpdf(err | -pi(), pi());
     sum_lps = log_sum_exp(t_enc_lps, nt_enc_lps);
     return sum_lps;
   }

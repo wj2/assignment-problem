@@ -20,7 +20,7 @@ functions {
     se_lprob = log((mem_stim - 1.)/n);
     for (i in 1:n) {
       ae_prob[i] = exp(se_lprob + normal_lcdf(-fabs(dist[i])
-					      | 0, sqrt(distortion)));
+					      | 0, 2*sqrt(distortion)));
     }
     return ae_prob;
   }
@@ -132,8 +132,7 @@ functions {
       if (i < n_stim) {
 	num_prob = poisson_lpmf(i | enc_rate);
       } else {
-	num_prob = log_sum_exp(poisson_lpmf(n_stim | enc_rate),
-			       poisson_lccdf(n_stim + 1 | enc_rate));
+	num_prob = poisson_lccdf(n_stim - 1 | enc_rate);
       }
       enc_lps[i+1] = num_prob + lpe;
     }
@@ -233,7 +232,7 @@ model {
   mech_dist_raw ~ normal(0, 1);
   enc_rate_raw ~ normal(0, 1);
 
-  // model  
+  // model
   for (t in 1:T) {
     subj = subj_id[t];
     sum_lps = compute_log_prob(report_err[t], dist_bits[subj],

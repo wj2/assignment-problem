@@ -221,8 +221,8 @@ model {
   for (t in 1:T) {
     subj = subj_id[t];
     sum_lps = compute_log_prob(report_err[t], dist_bits[subj],
-			       report_bits[subj], 
-			       stim_poss[t]', num_stim[t], stim_errs[t]',
+			       report_bits[subj], stim_poss[t]',
+			       num_stim[t], stim_errs[t]',
 			       enc_rate[subj]);
     target += sum_lps;
   }
@@ -235,8 +235,8 @@ generated quantities {
   for (t in 1:T) {
     int subj = subj_id[t];
     log_lik[t] = compute_log_prob(report_err[t], dist_bits[subj],
-				  report_bits[subj], 
-				  stim_poss[t]', num_stim[t], stim_errs[t]',
+				  report_bits[subj], stim_poss[t]',
+				  num_stim[t], stim_errs[t]',
 				  enc_rate[subj]);
     err_hat[t] = report_err_rng(dist_bits[subj], report_bits[subj],
 				stim_poss[t]', num_stim[t],

@@ -234,20 +234,23 @@ def line_picking_line(x):
 
 def compute_ds(b, k, c, delt, n_stim, s=100, repl_nan=True,
                source_distrib='gaussian'):
-    if source_distrib not in ('gaussian', 'uniform'):
-        raise Exception('this function only works for Gaussians sources')
-    """ Gaussian is N(0, s) """
+    if source_distrib.lower() not in ('gaussian', 'uniform'):
+        raise Exception('this function only works for Gaussian and Uniform '
+                        'sources')
+    """ Gaussian is N(0, s^2) """
     """ Uniform goes from 0 to s """
     ft = ((1 - delt**2)/4)**(c/(k + c))
     if source_distrib == 'gaussian':
-        st = s
+        st = s**2
     elif source_distrib == 'uniform':
         st = (s**2)/(2*np.pi)
     tt = np.exp(-2*b/(n_stim*(k + c)))
     d = ft*st*tt
+    # print('dist_contr',  s**2, 2*d/(1 - delt))
+    # print('deriv_constr', b, k*n_stim*np.log(4/(1 - delt**2))/2)
     if repl_nan and len(np.array(d).shape) > 0:
         with warnings.catch_warnings(record=True) as w:
-            mask = 2*d/(1 - delt) < s**2
+            mask = 4*d < (1 - delt)*s**2
         d[np.logical_not(mask)] = np.nan
     return d
 
@@ -270,9 +273,10 @@ def dxdy_from_dsdelt(ds, delt):
     return dx, dy
 
 def ae_ev_bits(bits, k, s, n_stim, c_xys, delts,
-               source_distrib='uniform'):
+               source_distrib='uniform', compute_redund=False):
     aes = np.zeros((len(c_xys), len(delts), len(bits)))
     evs = np.zeros_like(aes)
+    redund = np.zeros_like(aes)
     n_stim = (n_stim,)
     for i, c_xy in enumerate(c_xys):
         for j, delt in enumerate(delts):
@@ -285,7 +289,13 @@ def ae_ev_bits(bits, k, s, n_stim, c_xys, delts,
                 aes[i, j, l] = integrate_assignment_error(n_stim, dx, dy, c_xy,
                                                           p=s)
                 evs[i, j, l] = ds
-    return aes, evs
+                redund[i, j, l] = feature_redundant_info(n_stim, dx, dy, c_xy,
+                                                         p=s)
+    if compute_redund:
+        out = aes, evs, redund
+    else:
+        out = aes, evs
+    return out
 
 def mse_weighting(k, c, s, source_distrib='uniform', n_emp=10000):
     d = k - c

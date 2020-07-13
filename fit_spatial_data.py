@@ -32,6 +32,9 @@ def create_parser():
                         help='maximum tree depth to use')
     parser.add_argument('--no_arviz', default=False, action='store_true',
                         help='do not store arviz inference data')
+    parser.add_argument('--test_grad', default=False, action='store_true',
+                        help='test gradient for fitting procedure, does not '
+                        'produce any samples')
     return parser
 
 if __name__ == '__main__':
@@ -46,7 +49,8 @@ if __name__ == '__main__':
 
     control = {'adapt_delta':args.adapt_delta,
                'max_treedepth':args.max_treedepth}
-    stan_params = {'iter':args.length, 'control':control, 'chains':args.chains}
+    stan_params = {'iter':args.length, 'control':control, 'chains':args.chains,
+                   'test_grad':args.test_grad}
     
     # rbmm = 200
     # rbmv = 100
@@ -56,19 +60,22 @@ if __name__ == '__main__':
     rbmv = 5
     rbvm = 5
     rbvv = 10
+
     dbmm = 12
     dbmv = 10
     dbvm = 5
     dbvv = 10
+
+    ermm = 4
+    ermv = 1
+    ervm = 1
+    ervv = 1
+
     mdmm = .5
     mdmv = 5
     mdvm = 5
     mdvv = 10
-    ermm = 5
-    ermv = 5
-    ervm = 5
-    ervv = 10
-
+    
     inits = {'report_bits_mean':rbmm, 'dist_bits_mean':dbmm}
     all_inits = (inits,)*args.chains
     
@@ -84,8 +91,7 @@ if __name__ == '__main__':
     fits_dict = {}
     for k, v in stan_format.items():
         f = da.fit_stan_model(v, prior_dict, model_path=da.spatial_model_snmd,
-                              init=all_inits,
-                              **stan_params)
+                              init=all_inits, **stan_params)
         fits_dict[k] = f
         
     fit_models = su.store_models(fits_dict, store_arviz=not args.no_arviz)

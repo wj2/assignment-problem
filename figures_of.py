@@ -80,7 +80,7 @@ def figure1(basefolder=bf, gen_panels=None, data=None):
             data['d'] = (emp_ders, emp_xs)
         plot_distance_error_prob(de_ax, distortions=dists,
                                  emp_ders=emp_ders, emp_xs=emp_xs,
-                                 color_st=n_colors[0])
+                                 color=n_colors[0])
 
     if 'e' in gen_panels:
         dd_ax = f.add_subplot(distance_distrib_grid)
@@ -143,7 +143,7 @@ def figure2(basefolder=bf, gen_panels=None, data=None):
         ep_ax = f.add_subplot(distance_prob_grid)
         ep_ax.set_yscale('log')
         out = plot_distance_error_prob(ep_ax, distortions=ds,
-                                       color_st=bound_color,
+                                       color=bound_color,
                                        distance_bounds=(20, size - 20),
                                        line_label=True)
         curve, dists = out

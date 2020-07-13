@@ -207,6 +207,23 @@ def load_models(folder, pattern):
         func_dict[k] = fm
     return model_dict, func_dict
 
+def sample_forward_model(n, report_dists, spatial_dists=None, n_samples=1,
+                         report_bits=1, dist_bits=1, mech_dist=1, sz=8,
+                         spacing=np.pi/4):
+    out = _get_ae_probabilities(n, report_dists, spatial_dists=spatial_dists,
+                                report_bits=report_bits, dist_bits=dist_bits,
+                                mech_dist=mech_dist, sz=sz, spacing=spacing)
+    report_distortion, ae_probs = out
+    ae_probs[0] = 1 - np.sum(ae_probs[1:n])
+    if ae_probs[0] < 0:
+        ae_probs[0] = 0
+        ae_probs[1:n] = ae_probs[1:n]/np.sum(ae_probs[1:n])
+    resps = np.random.choice(range(n), n_samples, p=ae_probs)
+    means = report_dists[resps]
+    var = sts.norm(0, np.sqrt(report_distortion)).rvs(means.shape)
+    samples = means + var
+    return samples
+
 def load_spatial_models(folder, pattern):
     fls = list(u.get_matching_files(folder, pattern))
     spatial_model = pickle.load(open(os.path.join(folder, fls[0]), 'rb'))
@@ -321,7 +338,8 @@ def _get_ae_probabilities(n, report_dists, spatial_dists=None, report_bits=1,
             ae_probs = np.ones(n)*ae_prob/(n - 1)
             ae_probs[0] = 0
         else:
-            ae_probs = ae_spatial_probability(dist_bits, n, spatial_dists)
+            ae_probs = ae_spatial_probability(dist_bits, n,
+                                              np.abs(spatial_dists))
     else:
         ae_probs = np.zeros(n)
     return report_distortion, ae_probs
@@ -354,22 +372,44 @@ def get_forward_model(params, rb='report_bits', dm='mech_dist',
         funcs.append(fm)
     return funcs
 
-def sample_forward_model(n, report_dists, spatial_dists=None, n_samples=1,
-                         report_bits=1, dist_bits=1, mech_dist=1, sz=8,
-                         spacing=np.pi/4):
-    out = _get_ae_probabilities(n, report_dists, spatial_dists=spatial_dists,
-                                report_bits=report_bits, dist_bits=dist_bits,
-                                mech_dist=mech_dist, sz=sz, spacing=spacing)
-    report_distortion, ae_probs = out
-    ae_probs[0] = 1 - np.sum(ae_probs[1:n])
-    if ae_probs[0] < 0:
-        ae_probs[0] = 0
-        ae_probs[1:n] = ae_probs[1:n]/np.sum(ae_probs[1:n])
-    resps = np.random.choice(range(n), n_samples, p=ae_probs)
-    means = report_dists[resps]
-    var = sts.norm(0, np.sqrt(report_distortion)).rvs(means.shape)
-    samples = means + var
-    return samples
+def generate_spatial_models(rb_m, rb_v, db_m, db_v, md_m, md_v, er_m, er_v,
+                            exper_datapath, fm=sample_forward_model, sz=8,
+                            spacing=np.pi/4):
+    data = pd.read_csv(exper_datapath)
+    subids = np.unique(data['subject'])
+    rbs = sts.norm(rb_m, rb_v).rvs(len(subids))
+    dbs = sts.norm(db_m, db_v).rvs(len(subids))
+    mds = sts.norm(md_m, md_v).rvs(len(subids))
+    ers = sts.norm(er_m, er_v).rvs(len(subids))
+    params = {'report_bits':rbs, 'dist_bits':dbs, 'mech_dist':mds,
+              'encoding_rates':ers}
+    fms = {}
+    for i, subid in enumerate(subids):
+        fm = ft.partial(fm, report_bits=rbs[i], dist_bits=dbs[i],
+                        mech_dist=mds[i], sz=sz, spacing=spacing)
+        fms[subid] = fm
+    return fms, params
+
+def generate_pseudo_data(fms, exper_datapath, outname='pseudo.csv',
+                         report_field='reportColor'):
+    data = pd.read_csv(exper_datapath)
+    mask = data[report_field] == 1
+    nan_mask = np.logical_not(np.isnan(data['targetColor']))
+    comb_mask = np.logical_and(mask, nan_mask)
+    data = data[comb_mask]
+    reformat_data = load_spatial_data_stan(exper_datapath,
+                                           report_field=report_field)
+    for i, (row_j, row) in enumerate(data.iterrows()):
+        sub = row['subject']
+        fm = fms[sub]
+        out = fm(reformat_data['num_stim'][i], reformat_data['stim_errs'][i],
+                 spatial_dists=reformat_data['stim_poss'][i])
+        out_orig = normalize_range(out + row['targetColor'])
+        data.at[row_j, 'responseColor'] = out_orig
+    path, _ = os.path.split(exper_datapath)
+    outpath = os.path.join(path, outname)
+    data.to_csv(outpath)
+    return data
 
 def model_data(data, fm, dist_field='rel_dists', load_field='N',
                outfield='error_vec', spatial_field='stim_poss',

@@ -52,11 +52,11 @@ if __name__ == '__main__':
     # rbmv = 100
     # rbvm = 10
     # rbvv = 100
-    rbmm = 6
-    rbmv = 10
+    rbmm = 12
+    rbmv = 5
     rbvm = 5
     rbvv = 10
-    dbmm = 6
+    dbmm = 12
     dbmv = 10
     dbvm = 5
     dbvv = 10

@@ -66,7 +66,7 @@ if __name__ == '__main__':
     dbvm = 5
     dbvv = 10
 
-    ermm = 4
+    ermm = 6
     ermv = 1
     ervm = 1
     ervv = 1

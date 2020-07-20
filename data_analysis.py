@@ -164,8 +164,10 @@ def format_experiments_stan(data, stim_spacing=None, stim_spacing_all=np.pi/4,
     return stan_dicts
 
 def load_spatial_data_stan(file_, sort_pos=True, n_stim=6,
-                           report_field='reportColor'):
+                           report_field='reportColor', trunc=None):
     data = pd.read_csv(file_,)
+    if trunc is not None:
+        data = data[:trunc]
     mask = data[report_field] == 1
     nan_mask = np.logical_not(np.isnan(data['targetColor']))
     comb_mask = mask & nan_mask
@@ -307,6 +309,7 @@ assignment_model = 'assignment/stan_models/exper_mix.pkl'
 spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'
 spatial_model_guess = 'assignment/stan_models/exper_mix_sguess.pkl'
 spatial_model_snmd = 'assignment/stan_models/exper_mix_snmd.pkl'
+spatial_model_set = 'assignment/stan_models/exper_mix_set.pkl'
 def fit_stan_model(stan_data, prior_dict, model_path=assignment_model,
                    **stan_params):
     fit_dict = {}

@@ -52,32 +52,30 @@ if __name__ == '__main__':
     stan_params = {'iter':args.length, 'control':control, 'chains':args.chains,
                    'test_grad':args.test_grad}
     
-    # rbmm = 200
-    # rbmv = 100
-    # rbvm = 10
-    # rbvv = 100
-    rbmm = 12
-    rbmv = 5
-    rbvm = 5
-    rbvv = 10
+    rbmm = 8
+    rbmv = 6
+    rbvm = 12
+    rbvv = 6
 
-    dbmm = 12
-    dbmv = 10
-    dbvm = 5
-    dbvv = 10
+    dbmm = 8
+    dbmv = 6
+    dbvm = 12
+    dbvv = 6
 
     ermm = 6
-    ermv = 1
-    ervm = 1
-    ervv = 1
+    ermv = 5
+    ervm = 6
+    ervv = 5
 
     mdmm = .5
     mdmv = 5
     mdvm = 5
     mdvv = 10
     
-    inits = {'report_bits_mean':rbmm, 'dist_bits_mean':dbmm}
+    inits = {} # {'report_bits_mean':rbmm, 'dist_bits_mean':dbmm,
+            #  'enc_rate_mean':ermm}
     all_inits = (inits,)*args.chains
+
     
     prior_dict = {'report_bits_mean_mean':rbmm, 'report_bits_mean_var':rbmv,
                   'report_bits_var_mean':rbvm, 'report_bits_var_var':rbvv,
@@ -90,6 +88,13 @@ if __name__ == '__main__':
     
     fits_dict = {}
     for k, v in stan_format.items():
+        n_subs = v['S']
+        db_raw = np.zeros(n_subs)
+        rb_raw = np.zeros(n_subs)
+        er_raw = np.zeros(n_subs)
+        prior_dict.update({'report_bits_raw':rb_raw, 'dist_bits_raw':db_raw,
+                           'enc_rate_raw':er_raw})
+
         f = da.fit_stan_model(v, prior_dict, model_path=da.spatial_model_snmd,
                               init=all_inits, **stan_params)
         fits_dict[k] = f

@@ -52,14 +52,14 @@ if __name__ == '__main__':
     stan_params = {'iter':args.length, 'control':control, 'chains':args.chains,
                    'test_grad':args.test_grad}
     
-    rbmm = 8
+    rbmm = 10
     rbmv = 6
-    rbvm = 12
+    rbvm = 4
     rbvv = 6
 
-    dbmm = 8
+    dbmm = 10
     dbmv = 6
-    dbvm = 12
+    dbvm = 4
     dbvv = 6
 
     ermm = 6

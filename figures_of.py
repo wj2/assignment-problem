@@ -422,19 +422,20 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
 
     fsize = (7.5, 5)
     f = plt.figure(figsize=fsize, constrained_layout=True)
-    gs = f.add_gridspec(12, 12)
+    gs = f.add_gridspec(100, 100)
 
-    schem_grid = gs[:6, 0:4]
-    mc1_grid = gs[6:9, 0:4]
-    mc2_grid = gs[9:, :4]
+    schem_grid = gs[:28, 0:70]
+    mc_grid = gs[:28, 70:]
     n_participants = 8
     pred_loads = []
     pred_colors = []
-    pred_dists = []
+    spacing = np.linspace(0, 100, n_participants + 1)
+    buff = 3
     for i in range(n_participants):
-        pred_loads.append(gs[0:4, 4+i:4+i+1])
-        pred_colors.append(gs[4:8, 4+i:4+i+1])
-        pred_dists.append(gs[8:12, 4+i:4+i+1])
+        beg = int(np.round(spacing[i] + buff))
+        end = int(np.round(spacing[i+1] - buff))
+        pred_loads.append(gs[35:65, beg:end])
+        pred_colors.append(gs[75:, beg:end])
 
     abort = False
     if datapath1 is None:
@@ -460,14 +461,8 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
 
     if not abort:
         models1, funcs1 = da.load_models(modelpath1, m_pattern1)
-        models2, funcs2, data2 = da.load_spatial_models(modelpath2,
-                                                        m_pattern2)
 
-        if 'b' in gen_panels:
-            mc1_ax = f.add_subplot(mc1_grid)
-
-        if 'c' in gen_panels:
-            mc2_ax = f.add_subplot(mc2_grid)
+        mc_ax = f.add_subplot(mc_grid)
 
         data_color = (.7, .7, .7)
         ct = np.nanmean
@@ -514,32 +509,4 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
                                         boots=boots, sep_subj=True,
                                         model_data=modd_dict)
             
-        if 'f' in gen_panels:
-            n_samples = 100
-            if 'f' not in data.keys():
-                m_data2 = da.simulate_data(data2, funcs2, spatial=True,
-                                           n_samples=n_samples)
-                data['f'] = m_data2
-            else:
-                m_data2 = data['f']
-            df = 'stim_poss'
-            spat_dict = da.experiment_subj_org(data2, dist_field=df, 
-                                               org_func=da.mse_by_dist)
-            spat_mod_dict = da.experiment_subj_org(m_data2, dist_field=df, 
-                                                   org_func=da.mse_by_dist)
-
-            axs_dist = [f.add_subplot(pd) for pd in pred_dists]
-            up = (f, axs_dist)
-            _ = da.plot_experiment_func(spat_dict,
-                                        plot_func=da.plot_dist_dependence,
-                                        x_ax='angular distance (radians)',
-                                        log_y=False,
-                                        data_color=data_color,
-                                        central_tendency=ct, legend=False,
-                                        n_bins=5, need_trials=20,
-                                        error_func=ef, use_plot=up,
-                                        plot_fit=True, use_same_ax=False,
-                                        boots=boots, sep_subj=True,
-                                        model_data=spat_mod_dict,
-                                        model_boots=boots)
     return data

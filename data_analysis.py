@@ -211,19 +211,32 @@ def load_models(folder, pattern):
 
 def sample_forward_model(n, report_dists, spatial_dists=None, n_samples=1,
                          report_bits=1, dist_bits=1, mech_dist=1, sz=8,
-                         spacing=np.pi/4):
-    out = _get_ae_probabilities(n, report_dists, spatial_dists=spatial_dists,
-                                report_bits=report_bits, dist_bits=dist_bits,
-                                mech_dist=mech_dist, sz=sz, spacing=spacing)
-    report_distortion, ae_probs = out
-    ae_probs[0] = 1 - np.sum(ae_probs[1:n])
-    if ae_probs[0] < 0:
-        ae_probs[0] = 0
-        ae_probs[1:n] = ae_probs[1:n]/np.sum(ae_probs[1:n])
-    resps = np.random.choice(range(n), n_samples, p=ae_probs)
-    means = report_dists[resps]
-    var = sts.norm(0, np.sqrt(report_distortion)).rvs(means.shape)
-    samples = means + var
+                         spacing=np.pi/4, encoding_rate=None):
+    if encoding_rate is not None:
+        n_enc_stim = min(sts.poisson(encoding_rate).rvs(), n)
+        enc_stim_inds = np.sort(np.random.choice(range(n), n_enc_stim,
+                                                 replace=False))
+        n = n_enc_stim
+        report_dists = report_dists[enc_stim_inds]
+        if spatial_dists is not None:
+            spatial_dists = spatial_dists[enc_stim_inds]
+    else:
+        enc_stim_inds = range(n)
+    if 0 in enc_stim_inds:
+        out = _get_ae_probabilities(n, report_dists, spatial_dists=spatial_dists,
+                                    report_bits=report_bits, dist_bits=dist_bits,
+                                    mech_dist=mech_dist, sz=sz, spacing=spacing)
+        report_distortion, ae_probs = out
+        ae_probs[0] = 1 - np.sum(ae_probs[1:n])
+        if ae_probs[0] < 0:
+            ae_probs[0] = 0
+            ae_probs[1:n] = ae_probs[1:n]/np.sum(ae_probs[1:n])
+        resps = np.random.choice(range(n), n_samples, p=ae_probs)
+        means = report_dists[resps]
+        var = sts.norm(0, np.sqrt(report_distortion)).rvs(means.shape)
+        samples = means + var
+    else:
+        samples = sts.uniform(-np.pi, 2*np.pi).rvs(n_samples)
     return samples
 
 def load_spatial_models(folder, pattern):
@@ -389,7 +402,8 @@ def generate_spatial_models(rb_m, rb_v, db_m, db_v, md_m, md_v, er_m, er_v,
     fms = {}
     for i, subid in enumerate(subids):
         fm = ft.partial(fm, report_bits=rbs[i], dist_bits=dbs[i],
-                        mech_dist=mds[i], sz=sz, spacing=spacing)
+                        mech_dist=mds[i], sz=sz, spacing=spacing,
+                        encoding_rate=ers[i])
         fms[subid] = fm
     return fms, params
 

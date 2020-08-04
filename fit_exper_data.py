@@ -75,6 +75,11 @@ if __name__ == '__main__':
     envm = 2
     envv = 1
 
+    smmm = 3
+    smmv = 2
+    smvm = 2
+    smvv = 1
+    
     lrbk = 7.5
     lrbt = .5
     lrak = 1
@@ -89,7 +94,9 @@ if __name__ == '__main__':
                   'encoding_rate_mean_mean':enmm, 'encoding_rate_mean_var':enmv,
                   'encoding_rate_var_mean':envm, 'encoding_rate_var_var':envv,
                   'lr_beta_k':lrbk, 'lr_beta_t':lrbt, 'lr_alpha_k':lrak,
-                  'lr_alpha_t':lrat}
+                  'lr_alpha_t':lrat,
+                  'stim_mem_mean_mean':smmm, 'stim_mem_mean_var':smmv,
+                  'stim_mem_var_mean':smvm, 'stim_mem_var_var':smvv}
     
     fits_dict = {}
     for k, v in stan_format.items():

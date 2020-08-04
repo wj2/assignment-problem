@@ -33,10 +33,10 @@ data {
   real<lower=0> report_bits_var_mean;
   real<lower=0> report_bits_var_var;
 
-  real<lower=0> dist_bits_mean_mean;
-  real<lower=0> dist_bits_mean_var;
-  real<lower=0> dist_bits_var_mean;
-  real<lower=0> dist_bits_var_var;
+  real<lower=0> stim_mem_mean_mean;
+  real<lower=0> stim_mem_mean_var;
+  real<lower=0> stim_mem_var_mean;
+  real<lower=0> stim_mem_var_var;
 
   real<lower=0> mech_dist_mean_mean;
   real<lower=0> mech_dist_mean_var;
@@ -56,15 +56,15 @@ parameters {
   real<lower=0> report_bits_mean;
   real<lower=0> report_bits_var;
 
-  real<lower=0> dist_bits_mean;
-  real<lower=0> dist_bits_var;
+  real<lower=0> stim_mem_mean;
+  real<lower=0> stim_mem_var;
 
   real<lower=0> mech_dist_mean;
   real<lower=0> mech_dist_var;
 
   // data-related
   vector[S] report_bits_raw;
-  vector[S] dist_bits_raw;
+  vector[S] stim_mem_raw;
   vector[S] mech_dist_raw;
 }
 
@@ -74,7 +74,7 @@ transformed parameters {
   vector<lower=0, upper=N>[S] mech_dist;
 
   report_bits = report_bits_mean + report_bits_raw*report_bits_var;
-  stim_mem = dist_bits_mean + dist_bits_raw*dist_bits_var;
+  stim_mem = stim_mem_mean + stim_mem_raw*stim_mem_var;
   mech_dist = mech_dist_mean + mech_dist_raw*mech_dist_var; 
 }
 
@@ -91,14 +91,14 @@ model {
   report_bits_var ~ normal(report_bits_var_mean, report_bits_var_var);
   report_bits_mean ~ normal(report_bits_mean_mean, report_bits_mean_var);
 
-  dist_bits_var ~ normal(dist_bits_var_mean, dist_bits_var_var);
-  dist_bits_mean ~ normal(dist_bits_mean_mean, dist_bits_mean_var);
+  stim_mem_var ~ normal(stim_mem_var_mean, stim_mem_var_var);
+  stim_mem_mean ~ normal(stim_mem_mean_mean, stim_mem_mean_var);
 
   mech_dist_var ~ normal(mech_dist_var_mean, mech_dist_var_var);
   mech_dist_mean ~ normal(mech_dist_mean_mean, mech_dist_mean_var);
   
   report_bits_raw ~ normal(0, 1);
-  dist_bits_raw ~ normal(0, 1);
+  stim_mem_raw ~ normal(0, 1);
   mech_dist_raw ~ normal(0, 1);
 
   // model  

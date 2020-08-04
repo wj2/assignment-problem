@@ -421,7 +421,7 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
         data = {}
 
     fsize = (7.5, 5)
-    f = plt.figure(figsize=fsize, constrained_layout=True)
+    f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
     schem_grid = gs[:28, 0:70]
@@ -430,7 +430,7 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
     pred_loads = []
     pred_colors = []
     spacing = np.linspace(0, 100, n_participants + 1)
-    buff = 3
+    buff = 1
     for i in range(n_participants):
         beg = int(np.round(spacing[i] + buff))
         end = int(np.round(spacing[i+1] - buff))
@@ -482,7 +482,10 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
 
             ml_dict = da.experiment_subj_org(data1)
             mod_dict = da.experiment_subj_org(m_data1)
-            axs_load = [f.add_subplot(pl) for pl in pred_loads]
+            ax1 = f.add_subplot(pred_loads[0])
+            axs_load = list(f.add_subplot(pl, sharex=ax1, sharey=ax1)
+                            for pl in pred_loads[1:])
+            axs_load = [ax1] + axs_load
             up = (f, axs_load)
             _ = da.plot_experiment_func(ml_dict, log_y=False, 
                                         data_color=data_color, 
@@ -492,10 +495,16 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
                                         boots=boots, sep_subj=True,
                                         model_data=mod_dict)  
 
+            gpl.clean_plot(axs_load[0], 0)
+            [gpl.clean_plot(al, 1) for al in axs_load[1:]]
+            
             mld_dict = da.experiment_subj_org(data1, org_func=da.mse_by_dist)
             modd_dict = da.experiment_subj_org(m_data1, org_func=da.mse_by_dist)
-            
-            axs_col = [f.add_subplot(pc) for pc in pred_colors]
+
+            ax1 = f.add_subplot(pred_colors[0])
+            axs_load = list(f.add_subplot(pl, sharex=ax1, sharey=ax1)
+                            for pl in pred_colors[1:])
+            axs_col = [ax1] + axs_load
             up = (f, axs_col)
             _ = da.plot_experiment_func(mld_dict,
                                         plot_func=da.plot_dist_dependence,
@@ -508,5 +517,7 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
                                         plot_fit=True, use_same_ax=False,
                                         boots=boots, sep_subj=True,
                                         model_data=modd_dict)
+            gpl.clean_plot(axs_col[0], 0)
+            [gpl.clean_plot(al, 1) for al in axs_col[1:]]
             
     return data

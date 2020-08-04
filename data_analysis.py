@@ -537,7 +537,7 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
                         binned_errs.append(be)
                         bin_cents.append((binbeg + bins[bi+1])/2)
                 bin_cents = np.array(bin_cents)
-                binned_errs = np.array(binned_errs)
+                binned_errs = np.array(binned_errs, dtype=object)
                 if boots is not None:
                     binned_errs = np.array(list(u.bootstrap_list(be_i,
                                                                  np.nanmean,

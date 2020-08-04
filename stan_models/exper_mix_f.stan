@@ -158,6 +158,9 @@ generated quantities {
     log_lik[t] = get_lps(report_err[t], stim_errs[t]', report_bits[subj],
 			 dist_bits[subj], mech_dist[subj], n_stim, N,
 			 stim_spacing);
+
+    local_d = sqrt(mech_dist[subj]
+		   + get_distortion(report_bits[subj], n_stim));
     
     ae_prob = get_ae_probability(dist_bits[subj], n_stim, N, stim_spacing);
     aep_per[1] = 1 - ae_prob;

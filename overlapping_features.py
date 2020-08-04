@@ -117,12 +117,15 @@ def error_approx(p, s, pop_ests, integ_step=.0001, eps=0):
     pe = u.euler_integrate(int_func, eps, p, integ_step)
     return factor*pe
 
-def error_approx_further(esses, srs, p=100):
+def error_approx_further(esses, srs, p=100, use_second=False):
     errs = np.zeros((len(esses), len(srs)))
     pop_ests = (p/srs)**2
     for i, s in enumerate(esses):
-        first_term = 2*np.sqrt(pop_ests)/(p*np.sqrt(np.pi))
-        second_term = -2*pop_ests/(2*(p**2))
+        first_term = 2*np.sqrt(2*pop_ests)/(p*np.sqrt(np.pi))
+        if use_second:
+            second_term = -8*pop_ests/(p**2)
+        else:
+            second_term = 0
         errs[i] = ss.comb(s, 2)*(first_term + second_term)
     errs[errs > 1] = 1
     return errs

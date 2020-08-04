@@ -520,4 +520,6 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
             gpl.clean_plot(axs_col[0], 0)
             [gpl.clean_plot(al, 1) for al in axs_col[1:]]
             
+    fname = os.path.join(bf, 'fig6-py.svg')
+    f.savefig(fname, bbox_inches='tight', transparent=True)
     return data

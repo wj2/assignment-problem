@@ -316,9 +316,13 @@ arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
                    'exper_mix_uniform.pkl':mix_uniform_man,
                    'exper_mix_nb_uniform.pkl':mix_uniform_man,
                    'exper_mix_nbu_lapse.pkl':mix_uniform_lapse_man,
-                   'exper_mix_snmd.pkl':mix_snmd}
+                   'exper_mix_snmd.pkl':mix_snmd,
+                   'exper_mix_f.pkl':mix_man,
+                   'exper_mix_noae.pkl':mix_man}
 
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
+guess_model = 'assignment/stan_models/exper_mix_noae.pkl'
+assignment_f = 'assignment/stan_models/exper_mix_f.pkl'
 spatial_model = 'assignment/stan_models/exper_mix_spatial.pkl'
 spatial_model_guess = 'assignment/stan_models/exper_mix_sguess.pkl'
 spatial_model_snmd = 'assignment/stan_models/exper_mix_snmd.pkl'

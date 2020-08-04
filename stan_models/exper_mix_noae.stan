@@ -71,7 +71,7 @@ parameters {
 transformed parameters {
   vector<lower=0>[S] report_bits;
   vector<lower=0>[S] stim_mem;
-  vector<lower=0>[S] mech_dist;
+  vector<lower=0, upper=N>[S] mech_dist;
 
   report_bits = report_bits_mean + report_bits_raw*report_bits_var;
   stim_mem = dist_bits_mean + dist_bits_raw*dist_bits_var;

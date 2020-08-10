@@ -8,14 +8,22 @@ functions {
   real get_lps(real err, vector stim_errs, real report_bits,
 	       real mem_stim, real mech_dist, int n_stim, int max_stim,
 	       real spacing) {
-    vector[2] lps;
+    vector[n_stim + 1] lps;
+    vector[2] per_mem;
     real cp;
     real local_d;
-    cp = min([mem_stim/n_stim, 1.]);
-    local_d = sqrt(mech_dist + get_distortion(report_bits, n_stim));
-    
-    lps[1] = log(cp) + normal_lpdf(err | 0, local_d);
-    lps[2] = log1m(cp) + uniform_lpdf(err | -pi(), pi());
+    real plf;
+    for (i in 0:n_stim) {
+      plf = poisson_lpmf(i | mem_stim);
+      if (i == n_stim) {
+	plf = log_sum_exp(plf, poisson_lccdf(i | mem_stim));
+      }
+      cp = log(1.*i/n_stim) + plf;
+      local_d = sqrt(mech_dist + get_distortion(report_bits, n_stim));
+      per_mem[1] = cp + normal_lpdf(err | 0, local_d);
+      per_mem[2] = log1m_exp(cp) + uniform_lpdf(err | -pi(), pi());
+      lps[i+1] = log_sum_exp(per_mem);
+    }
     return log_sum_exp(lps);
   }
 }
@@ -105,7 +113,6 @@ model {
   for (t in 1:T) {
     subj = subj_id[t];
     n_stim = num_stim[t];
-
     target += get_lps(report_err[t], stim_errs[t]', report_bits[subj],
 		      stim_mem[subj], mech_dist[subj], n_stim, N,
 		      stim_spacing);
@@ -123,6 +130,7 @@ generated quantities {
     real local_d;
     int corr;
     real eh;
+    int stim_enc;
     
     subj = subj_id[t];
     n_stim = num_stim[t];
@@ -133,7 +141,9 @@ generated quantities {
 
     local_d = sqrt(mech_dist[subj]
 		   + get_distortion(report_bits[subj], n_stim));
-    corr_prob = min([stim_mem[subj]/n_stim, 1.]);
+
+    stim_enc = poisson_rng(stim_mem[subj]);
+    corr_prob = min([1.*stim_enc/n_stim, 1.]);
     corr = bernoulli_rng(corr_prob);
     if (corr == 1) {
       eh = normal_rng(0, local_d);

@@ -18,11 +18,15 @@ functions {
       if (i == n_stim) {
 	plf = log_sum_exp(plf, poisson_lccdf(i | mem_stim));
       }
-      cp = log(1.*i/n_stim) + plf;
-      local_d = sqrt(mech_dist + get_distortion(report_bits, n_stim));
-      per_mem[1] = cp + normal_lpdf(err | 0, local_d);
-      per_mem[2] = log1m_exp(cp) + uniform_lpdf(err | -pi(), pi());
-      lps[i+1] = log_sum_exp(per_mem);
+      cp = log(1.*i/n_stim);
+      if (i > 0) {
+	local_d = sqrt(mech_dist + get_distortion(report_bits, i));
+	per_mem[1] = cp + normal_lpdf(err | 0, local_d);
+      } else {
+	per_mem[1] = log(0);
+      }
+      per_mem[2] = log(1 - exp(cp)) + uniform_lpdf(err | -pi(), pi());
+      lps[i+1] = plf + log_sum_exp(per_mem);
     }
     return log_sum_exp(lps);
   }

@@ -13,6 +13,7 @@ import itertools as it
 import pickle
 import pystan as ps
 import pandas as pd
+import arviz as av
 
 def load_data(folder, experiment_num=None, keep_experiments=None,
               pattern='E{}_subject_.*\.mat',
@@ -308,6 +309,19 @@ mix_snmd = {'observed_data':'report_err',
             'dims':{'report_bits':['subject'],
                     'dist_bits':['subject'],
                     'enc_rate':['subject']}}
+mix_fu = {'observed_data':'report_err',
+          'log_likelihood':{'report_err':'log_lik'},
+          'posterior_predictive':'err_hat',
+          'dims':{'report_bits':['subject'],
+                  'dist_bits':['subject'],
+                  'mech_dist':['subject'],
+                  'stim_mem':['subject']}}
+mix_u = {'observed_data':'report_err',
+          'log_likelihood':{'report_err':'log_lik'},
+          'posterior_predictive':'err_hat',
+          'dims':{'report_bits':['subject'],
+                  'mech_dist':['subject'],
+                  'stim_mem':['subject']}}
 
 arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
                    'exper_mix.pkl':mix_man,
@@ -318,7 +332,8 @@ arviz_manifests = {'exper_mix_nb.pkl':mix_nb_man,
                    'exper_mix_nbu_lapse.pkl':mix_uniform_lapse_man,
                    'exper_mix_snmd.pkl':mix_snmd,
                    'exper_mix_f.pkl':mix_man,
-                   'exper_mix_noae.pkl':mix_man}
+                   'exper_mix_fu.pkl':mix_fu,
+                   'exper_mix_noae.pkl':mix_u}
 
 assignment_model = 'assignment/stan_models/exper_mix.pkl'
 guess_model = 'assignment/stan_models/exper_mix_noae.pkl'
@@ -365,7 +380,8 @@ def _get_ae_probabilities(n, report_dists, spatial_dists=None, report_bits=1,
     return report_distortion, ae_probs
 
 def mse_forward_model(n, report_dists, spatial_dists=None, report_bits=1,
-                      dist_bits=1, mech_dist=1, sz=8, spacing=np.pi/4):
+                      dist_bits=1, mech_dist=1, sz=8, spacing=np.pi/4,
+                      n_samples=1):
     out = _get_ae_probabilities(n, report_dists, spatial_dists=spatial_dists,
                                 report_bits=report_bits, dist_bits=dist_bits,
                                 mech_dist=mech_dist, sz=sz, spacing=spacing)
@@ -373,8 +389,14 @@ def mse_forward_model(n, report_dists, spatial_dists=None, report_bits=1,
     ae_prob = np.sum(ae_probs)
     ae_pm = np.sum(ae_probs[1:n]*(report_dists[1:n]**2
                                   + report_distortion))
-    rmse = np.sqrt((1 - ae_prob)*report_distortion + ae_pm)
-    return rmse
+    aes = np.random.rand(n_samples) > ae_prob
+    err_ms = np.zeros(n_samples)
+    err_ms[:] = np.nan
+    err_ms[aes] = 0
+    cent_inds = np.random.randint(1, n, size=np.sum(~aes))
+    err_ms[~aes] = report_dists[cent_inds]
+    err = sts.norm(err_ms, np.sqrt(report_distortion)).rvs()
+    return err
 
 def get_forward_model(params, rb='report_bits', dm='mech_dist',
                           db='dist_bits', sz=8, spacing=np.pi/4,
@@ -442,7 +464,7 @@ def model_data(data, fm, dist_field='rel_dists', load_field='N',
         if spatial:
             samps = fm(n, rd, data[spatial_field][0, i], n_samples=n_samples)
         else:
-            samps = fm(n, rd)
+            samps = fm(n, rd, n_samples=n_samples)
         mses[i] = samps
     out[outfield] = np.expand_dims(mses, 0)
     out[dist_field] = data[dist_field]
@@ -509,10 +531,57 @@ def plot_load_mse(data, ax=None, plot_fit=True, max_load=np.inf, boots=None,
         subj = i + 1
         mse = np.array(err)[mask]**2
         if boots is not None:
-            mse = np.array(list(u.bootstrap_list(mse_i, np.nanmean, boots)
+            mse = np.array(list(u.bootstrap_list(mse_i.flatten(),
+                                                 np.nanmean, boots)
                                 for mse_i in mse))
         gpl.plot_trace_werr(l, mse, ax=use_ax, label='S{}'.format(subj),
                             jagged=True, color=data_color, **plot_args)
+    return ax    
+
+def read_models(dir_, pattern):
+    fs = u.get_matching_files(dir_, pattern)
+    mod_dict = {}
+    for f in fs:
+        p = os.path.join(dir_, f)
+        m = pickle.load(open(p, 'rb'))
+        mod_dict.update(m['models'])
+    return mod_dict
+
+def compare_models(dir_, p1, p2, include_sus=True, exclude=('divergence',)):
+    md1 = read_models(dir_, p1)
+    md2 = read_models(dir_, p2)
+    common_mods = set(md1.keys()).intersection(set(md2.keys()))
+    comparisons = {}
+    for k in common_mods:
+        m1, _, d1 = md1[k]
+        m2, _, d2 = md2[k]
+        list(d1.pop(e) for e in exclude)
+        list(d2.pop(e) for e in exclude)
+        if include_sus or (np.all(list(d1.values()))
+                           and np.all(list(d2.values()))):            
+            l1 = av.loo(m1.arviz)
+            l2 = av.loo(m2.arviz)
+            comparisons[k] = (l1, l2)
+    return comparisons
+
+def plot_subj_ppc(data, ax=None, plot_fit=True, max_load=np.inf, boots=None,
+                  sep_subj=False, data_color=None,
+                  **plot_args):
+    if ax is None:
+        f, ax = plt.subplots(1, 1)
+    ls, errs = data
+    for i, err in enumerate(errs):
+        if sep_subj:
+            use_ax = ax[i]
+        else:
+            use_ax = ax
+        l = ls[i]
+        mask = l <= max_load
+        l = l[mask]
+        subj = i + 1
+        errs_all = np.concatenate(err).flatten()
+        use_ax.hist(errs_all, histtype='step', color=data_color,
+                    density=True)
     return ax    
 
 def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
@@ -554,7 +623,7 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
 def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(1,1),
                          x_ax='set size (N)', y_ax='color report MSE',
                          use_plot=None, use_same_ax=False, model_data=None,
-                         sep_subj=False, model_boots=None, boots=None,
+                         sep_subj=False, boots=None,
                          **plot_args):
     if model_data is None:
         model_data = {}
@@ -595,7 +664,7 @@ def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(1,1),
             orig_color = plot_args['data_color']
             plot_args['data_color'] = None
             _ = plot_func(model, ax=use_ax, sep_subj=sep_subj,
-                          boots=model_boots, **plot_args)
+                          boots=boots, **plot_args)
             plot_args['data_color'] = orig_color
         if sep_subj:
             use_ax[0].set_ylabel(y_ax)

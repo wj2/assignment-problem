@@ -143,7 +143,7 @@ generated quantities {
 			 stim_mem[subj], mech_dist[subj], n_stim, N,
 			 stim_spacing);
 
-    stim_enc = poisson_rng(stim_mem[subj]);
+    stim_enc = min(poisson_rng(stim_mem[subj]), n_stim);
     local_d = sqrt(mech_dist[subj]
 		   + get_distortion(report_bits[subj], stim_enc));
 

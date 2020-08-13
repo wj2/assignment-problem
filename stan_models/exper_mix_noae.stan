@@ -143,10 +143,10 @@ generated quantities {
 			 stim_mem[subj], mech_dist[subj], n_stim, N,
 			 stim_spacing);
 
-    local_d = sqrt(mech_dist[subj]
-		   + get_distortion(report_bits[subj], n_stim));
-
     stim_enc = poisson_rng(stim_mem[subj]);
+    local_d = sqrt(mech_dist[subj]
+		   + get_distortion(report_bits[subj], stim_enc));
+
     corr_prob = min([1.*stim_enc/n_stim, 1.]);
     corr = bernoulli_rng(corr_prob);
     if (corr == 1) {

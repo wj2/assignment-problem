@@ -36,6 +36,9 @@ def create_parser():
                         help='path to pkld stan model to use')
     parser.add_argument('--no_arviz', default=False, action='store_true',
                         help='do not store arviz inference data')
+    parser.add_argument('--test_grad', default=False, action='store_true',
+                        help='test gradient for fitting procedure, does not '
+                        'produce any samples')
     return parser
 
 if __name__ == '__main__':
@@ -53,7 +56,8 @@ if __name__ == '__main__':
 
     control = {'adapt_delta':args.adapt_delta,
                'max_treedepth':args.max_treedepth}
-    stan_params = {'iter':args.length, 'control':control, 'chains':args.chains}
+    stan_params = {'iter':args.length, 'control':control, 'chains':args.chains,
+                   'test_grad':args.test_grad}
     
     rbmm = 5
     rbmv = 10
@@ -97,11 +101,15 @@ if __name__ == '__main__':
                   'lr_alpha_t':lrat,
                   'stim_mem_mean_mean':smmm, 'stim_mem_mean_var':smmv,
                   'stim_mem_var_mean':smvm, 'stim_mem_var_var':smvv}
+
+    inits = {'report_bits_mean':rbmm, 'dist_bits_mean':dbmm,
+             'mech_dist_mean':mdmm, 'stim_mem_mean':smmm}
+    all_inits = (inits,)*args.chains
     
     fits_dict = {}
     for k, v in stan_format.items():
         f = da.fit_stan_model(v, prior_dict, model_path=args.model_path,
-                              **stan_params)
+                              init=all_inits, **stan_params)
         fits_dict[k] = f
         
     fit_models = su.store_models(fits_dict, store_arviz=not args.no_arviz)

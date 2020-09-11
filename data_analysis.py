@@ -196,6 +196,12 @@ def load_spatial_data_stan(file_, sort_pos=True, n_stim=6,
     sd['T'] = len(errs)
     return sd
 
+def load_model(path):
+    lm = pickle.load(open(path, 'rb'))['models']
+    assert len(lm.keys()) == 1
+    m = list(lm.values())[0]
+    return m
+
 def load_models(folder, pattern):
     fls = u.get_matching_files(folder, pattern)
     model_dict = {}
@@ -506,6 +512,40 @@ def subj_org(data, org_func=mse_by_load, **field_keys):
         all_ls.append(ls)
     return all_ls, all_mses
 
+def _make_subj_structure(d, subj_field, *fields):
+    subs = np.unique(d[subj_field])
+    subs_all = []
+    for i, s in enumerate(subs):
+        mask = d[subj_field] == s
+        sub_d = {}
+        for f in fields:
+            sub_d[f] = d[f][mask]
+        subs_all.append(sub_d)
+    return subs_all, subs
+
+def uniform_prob(sm, n):
+    prob = 0
+    for i in range(0, n + 1):
+        p = sts.poisson(sm).pmf(i)
+        if i == n:
+            p = p + (1 - sts.poisson(sm).cdf(i))
+        prob = prob + p*i/n
+    return 1 - prob
+
+def model_subj_org(data, org_func=mse_by_load, dist_field='stim_locs',
+                   load_field='num_stim', err_field='report_err',
+                   subj_field='subj_id', model=None, model_gen='err_hat'):
+    org_dict = {}
+    for k, ed in data.items():
+        if model is not None:
+            ed = ed.copy()
+            ed[err_field] = model[k].samples[model_gen].T
+        sd, subs = _make_subj_structure(ed, subj_field, dist_field, load_field,
+                                        err_field)
+        org_dict[k] = subj_org(sd, org_func, load_field=load_field,
+                               dist_field=dist_field, err_field=err_field)
+    return org_dict
+
 def experiment_subj_org(data, org_func=mse_by_load, dist_field='rel_dists',
                         load_field='N', err_field='error_vec'):
     org_dict = {}
@@ -551,6 +591,8 @@ def compare_models(dir_, p1, p2, include_sus=True, exclude=('divergence',)):
     md1 = read_models(dir_, p1)
     md2 = read_models(dir_, p2)
     common_mods = set(md1.keys()).intersection(set(md2.keys()))
+    print(md2.keys())
+    print(common_mods)
     comparisons = {}
     for k in common_mods:
         m1, _, d1 = md1[k]
@@ -558,10 +600,12 @@ def compare_models(dir_, p1, p2, include_sus=True, exclude=('divergence',)):
         list(d1.pop(e) for e in exclude)
         list(d2.pop(e) for e in exclude)
         if include_sus or (np.all(list(d1.values()))
-                           and np.all(list(d2.values()))):            
+                           and np.all(list(d2.values()))):
             l1 = av.loo(m1.arviz)
             l2 = av.loo(m2.arviz)
-            comparisons[k] = (l1, l2)
+            d = {'p1':m1.arviz, 'p2':m2.arviz}
+            c = av.compare(d)
+            comparisons[k] = (l1, l2, c)
     return comparisons
 
 def plot_subj_ppc(data, ax=None, plot_fit=True, max_load=np.inf, boots=None,
@@ -597,7 +641,8 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
             use_ax = ax
         for i, (errs, dists) in enumerate(load):
             if ls[j][i] > 1:
-                dists = np.min(np.abs(dists[:, 1:]), axis=1)
+                l = ls[j][i]
+                dists = np.min(np.abs(dists[:, 1:l]), axis=1)
                 max_bin = np.percentile(dists, digit_percentile)
                 bins = np.linspace(0, max_bin + eps, n_bins + 1)
                 bin_inds = np.digitize(dists, bins)
@@ -613,7 +658,7 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
                 binned_errs = np.array(binned_errs, dtype=object)
                 if boots is not None:
                     binned_errs = np.array(list(u.bootstrap_list(be_i,
-                                                                 np.nanmean,
+                                                                 np.mean,
                                                                  boots)
                                                 for be_i in binned_errs))
                 gpl.plot_trace_werr(bin_cents, binned_errs, ax=use_ax, jagged=True,
@@ -623,7 +668,7 @@ def plot_dist_dependence(data, ax=None, eps=1e-4, plot_fit=True, boots=None,
 def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(1,1),
                          x_ax='set size (N)', y_ax='color report MSE',
                          use_plot=None, use_same_ax=False, model_data=None,
-                         sep_subj=False, boots=None,
+                         sep_subj=False, boots=None, set_xs=None,
                          **plot_args):
     if model_data is None:
         model_data = {}
@@ -667,9 +712,12 @@ def plot_experiment_func(data, plot_func=plot_load_mse, ax_size=(1,1),
                           boots=boots, **plot_args)
             plot_args['data_color'] = orig_color
         if sep_subj:
+            if set_xs is None:
+                set_xs = range(use_ax)
             use_ax[0].set_ylabel(y_ax)
-            for ax_i in use_ax:
-                ax_i.set_xlabel(x_ax)
+            for i, ax_i in enumerate(use_ax):
+                if i in set_xs:
+                    ax_i.set_xlabel(x_ax)
         else:
             use_ax.set_xlabel(x_ax)
             use_ax.set_ylabel(y_ax)

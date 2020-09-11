@@ -6,8 +6,10 @@ import general.plotting_styles as gps
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import numpy as np
+import arviz as av
 import scipy.stats as sts
 import os
+import assignment.ff_integration as ff
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
 
@@ -319,15 +321,19 @@ def figure5(basefolder=bf, gen_panels=None, data=None):
         data = {}
 
     fsize = (5, 4)
-    f = plt.figure(figsize=fsize, constrained_layout=True)
+    f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
-    ae_c_grid = gs[:28, 0:55]
-    local_c_grid = gs[28:56, 0:55]
-    ae_delt_grid = gs[:28, 55:]
-    local_delt_grid = gs[28:56, 55:]
-    info_by_local_grid = gs[56:, :50]
-    total_grid = gs[56:, 50:]
+    ae_c_grid = gs[:25, 0:50]
+    local_c_grid = gs[32:50, 0:50]
+    ae_delt_grid = gs[:25, 55:]
+    local_delt_grid = gs[32:50, 55:]
+    
+    info_by_local_grid = gs[70:, :40]
+    
+    ae_red_grid = gs[70:, 55:70]
+    ld_red_grid = gs[70:, 85:]
+    # total_grid = gs[56:, 50:]
 
     source_distrib = 'uniform'
     k = 5
@@ -338,12 +344,12 @@ def figure5(basefolder=bf, gen_panels=None, data=None):
     delts = .99 - np.logspace(-4, 0, 20)
     if 'abcdef' in data.keys():
         out = data['abcdef']
-        aes, evs, bits, k, s, n_stim, c_xys, delts, source_distrib = out
+        aes, evs, red, bits, k, s, n_stim, c_xys, delts, source_distrib = out
     else:
         out = am.ae_ev_bits(bits, k, s, n_stim, c_xys, delts,
-                            source_distrib=source_distrib)
-        aes, evs = out
-        data['abcdef'] = (aes, evs, bits, k, s, n_stim, c_xys, delts,
+                            source_distrib=source_distrib, compute_redund=True)
+        aes, evs, red = out
+        data['abcdef'] = (aes, evs, red, bits, k, s, n_stim, c_xys, delts,
                           source_distrib)
     """ c x delt x bits """
     if 'abcde' in gen_panels:
@@ -396,20 +402,193 @@ def figure5(basefolder=bf, gen_panels=None, data=None):
                 gpl.label_plot_line(aes[i, :, 0][::-1], evs[i, :, 0][::-1],
                                     r'asymmetry $\rightarrow$',
                                     ax=lae_ax, buff=5)
+
+    bit_ind = -10
     if 'f' in gen_panels:
-        tot_ax = f.add_subplot(total_grid)
-        tot_ax.set_xlabel('information (nats)')
-        tot_ax.set_ylabel('total distortion')
+        ae_red_ax = f.add_subplot(ae_red_grid)
+        ld_red_ax = f.add_subplot(ld_red_grid)
+        ae_red_ax.set_xlabel('redundancy (nats)')
+        ae_red_ax.set_ylabel('assignment\nerror rate')
+        ld_red_ax.set_ylabel('estimator\nvariance '+r'$D_{S}$')
         for i, c in enumerate(c_xys):
-            lam = am.mse_weighting(k, c, s, source_distrib=source_distrib)
-            total_err = evs[i] + aes[i]*lam
-            gpl.plot_trace_werr(bits, total_err[0], ax=tot_ax, log_y=True)
+            r = red[i, :, bit_ind]
+            ae = aes[i, :, bit_ind]
+            ld = evs[i, :, bit_ind]
+            gpl.plot_trace_werr(r, ae, log_y=True, ax=ae_red_ax)
+            gpl.plot_trace_werr(r, ld, log_y=True, ax=ld_red_ax)
+
+    # if 'f' in gen_panels:
+    #     tot_ax = f.add_subplot(total_grid)
+    #     tot_ax.set_xlabel('information (nats)')
+    #     tot_ax.set_ylabel('total distortion')
+    #     for i, c in enumerate(c_xys):
+    #         lam = am.mse_weighting(k, c, s, source_distrib=source_distrib)
+    #         total_err = evs[i] + aes[i]*lam
+    #         gpl.plot_trace_werr(bits, total_err[0], ax=tot_ax, log_y=True)
 
     gpl.clean_plot(ld_ax, 1)
     gpl.clean_plot(aed_ax, 1)
     fname = os.path.join(bf, 'fig5-py.svg')
     f.savefig(fname, bbox_inches='tight', transparent=True)
     return data
+
+def figure6_alt(basefolder=bf, mp1=None, mp2=None, mp3=None, gen_panels=None,
+                data=None, experiment_key='Zhang & Luck 2008'): 
+    setup()
+    if gen_panels is None:
+        gen_panels = ('a', 'b', 'c', 'd', 'e', 'f', 'comp')
+    if data is None:
+        data = {}
+
+    fsize = (7.5, 6)
+    f = plt.figure(figsize=fsize)
+    gs = f.add_gridspec(100, 100)
+
+    schem_grid = gs[:20, 0:65]
+    mod_dist_grid = gs[:26, 70:75]
+    mod_ae_grid = gs[:26, 82:87]
+    mod_uni_grid = gs[:26, 94:]    
+    n_participants = 8
+    pred_loads = []
+    pred_colors = []
+    pred_ppc = []
+    spacing = np.linspace(0, 100, n_participants + 1)
+    buff = 1
+    for i in range(n_participants):
+        beg = int(np.round(spacing[i] + buff))
+        end = int(np.round(spacing[i+1] - buff))
+        pred_ppc.append(gs[26:44, beg:end])
+        pred_loads.append(gs[54:72, beg:end])
+        pred_colors.append(gs[82:, beg:end])
+
+    abort = False
+    if mp1 is None or mp2 is None:
+        print('-------------------------------------------------')
+        print('this figure relies on model fits that are missing')
+        print('the code for fitting the models is included here,')
+        print('however it is computationally expensive and so is')
+        print('not run as part of this function')
+        abort = True
+        
+    if 'a' in gen_panels:
+        schem_ax = f.add_subplot(schem_grid)
+
+    if not abort:
+        if 'def' not in data.keys():
+            m1, p1, diag1 = da.load_model(mp1)
+            m2, p2, diag2 = da.load_model(mp2)
+            m1_dict = {experiment_key:m1}
+            d1_dict = {experiment_key:p1}
+            data['def'] = (d1_dict, m1_dict)
+            data['c'] = [m1]
+            comp = ((m1, diag1), (m2, diag2))
+            if mp3 is not None:
+                m3, _, diag3 = da.load_model(mp3)
+                comp = comp + ((m3, diag3),)
+            data['comp'] = comp
+
+        if 'comp' in gen_panels:
+            m_dict = {}
+            if mp3 is not None:
+                ((m1, diag1), (m2, diag2), (m3, diag3)) = data['comp']
+            else:
+                ((m1, diag1), (m2, diag2)) = data['comp']
+            m_dict = {'full':m1.arviz, 'uni':m2.arviz}
+            if mp3 is not None:
+                m_dict['assign'] = m3.arviz
+            out = av.compare(m_dict)
+            print(out)
+        
+        data_color = (.7, .7, .7)
+        ct = np.nanmean
+        ef = gpl.conf95_interval
+        boots = 200
+        
+        dist_ax = f.add_subplot(mod_dist_grid)
+        ae_ax = f.add_subplot(mod_ae_grid)
+        uni_ax = f.add_subplot(mod_uni_grid, sharey=ae_ax)
+        if 'c' in gen_panels:
+            m1_list = data['c']
+            plot_stan_model(m1_list, ae_ax, dist_ax, uni_ax)
+
+        set_xs = [2, 5]
+        ax1 = f.add_subplot(pred_loads[0])
+        axs_load = list(f.add_subplot(pl, sharex=ax1, sharey=ax1)
+                        for pl in pred_loads[1:])
+        axs_load = [ax1] + axs_load
+        if 'd' in gen_panels:
+            d1_dict, m1_dict = data['def']
+            mse_dict = da.model_subj_org(d1_dict)
+            mod_dict = da.model_subj_org(d1_dict, model=m1_dict)
+            up = (f, axs_load)
+            _ = da.plot_experiment_func(mse_dict, log_y=False,
+                                        data_color=data_color, 
+                                        central_tendency=ct, legend=False,
+                                        error_func=ef,  plot_fit=False,
+                                        use_plot=up, use_same_ax=False,
+                                        boots=boots, sep_subj=True,
+                                        model_data=mod_dict,
+                                        set_xs=set_xs)  
+
+            gpl.clean_plot(axs_load[0], 0)
+            [gpl.clean_plot(al, 1) for al in axs_load[1:]]
+
+        ax1 = f.add_subplot(pred_colors[0])
+        axs_col = list(f.add_subplot(pl, sharex=ax1, sharey=ax1)
+                        for pl in pred_colors[1:])
+        axs_col = [ax1] + axs_col
+        up = (f, axs_col)
+        if 'e' in gen_panels:
+            d1_dict, m1_dict = data['def']
+            mld_dict = da.model_subj_org(d1_dict, org_func=da.mse_by_dist)
+            modd_dict = da.model_subj_org(d1_dict, org_func=da.mse_by_dist,
+                                          model=m1_dict)
+
+            _ = da.plot_experiment_func(mld_dict,
+                                        plot_func=da.plot_dist_dependence,
+                                        x_ax='color distance (radians)',
+                                        log_y=False,
+                                        data_color=data_color,
+                                        central_tendency=ct, legend=False,
+                                        n_bins=5, need_trials=20,
+                                        error_func=ef, use_plot=up,
+                                        plot_fit=True, use_same_ax=False,
+                                        boots=boots, sep_subj=True,
+                                        model_data=modd_dict,
+                                        set_xs=set_xs)
+            gpl.clean_plot(axs_col[0], 0)
+            [gpl.clean_plot(al, 1) for al in axs_col[1:]]
+            
+        ax1 = f.add_subplot(pred_ppc[0])
+        axs_ppc = list(f.add_subplot(pl, sharex=ax1, sharey=ax1)
+                        for pl in pred_ppc[1:])
+        axs_ppc = [ax1] + axs_ppc
+        up = (f, axs_ppc)
+        if 'f' in gen_panels:
+            d1_dict, m1_dict = data['def']
+            mld_dict = da.model_subj_org(d1_dict)
+            modd_dict = da.model_subj_org(d1_dict, model=m1_dict)
+
+            _ = da.plot_experiment_func(mld_dict,
+                                        plot_func=da.plot_subj_ppc,
+                                        x_ax='error (radians)',
+                                        log_y=False,
+                                        data_color=data_color,
+                                        central_tendency=ct, legend=False,
+                                        n_bins=5, need_trials=20,
+                                        error_func=ef, use_plot=up,
+                                        plot_fit=True, use_same_ax=False,
+                                        boots=boots, sep_subj=True,
+                                        model_data=modd_dict,
+                                        y_ax='density',
+                                        set_xs=set_xs)
+            gpl.clean_plot(axs_ppc[0], 0)
+            [gpl.clean_plot(al, 1) for al in axs_ppc[1:]]
+
+    fname = os.path.join(bf, 'fig6-py.svg')
+    f.savefig(fname, bbox_inches='tight', transparent=True)
+    return data
+
 
 def figure6(basefolder=bf, datapath1=None, modelpath1=None,
             modelpath2=None, m_pattern1=None, m_pattern2=None,
@@ -424,8 +603,9 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
     f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
-    schem_grid = gs[:28, 0:70]
-    mc_grid = gs[:28, 70:]
+    schem_grid = gs[:28, 0:65]
+    mod_dist_grid = gs[:35, 78:83]
+    mod_ae_grid = gs[:35, 90:95]
     n_participants = 8
     pred_loads = []
     pred_colors = []
@@ -461,21 +641,26 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
 
     if not abort:
         models1, funcs1 = da.load_models(modelpath1, m_pattern1)
-
-        mc_ax = f.add_subplot(mc_grid)
-
+        
         data_color = (.7, .7, .7)
         ct = np.nanmean
         ef = gpl.conf95_interval
-        boots = 5000
+        boots = 1000
+        n_samples = 100
         experiment_keys = ('Zhang & Luck 2008',)
+
+        dist_ax = f.add_subplot(mod_dist_grid)
+        ae_ax = f.add_subplot(mod_ae_grid)
+        if 'c' in gen_panels:
+            plot_stan_model(models1[experiment_keys[0]], ae_ax, dist_ax)
+
         if 'de' in gen_panels:
             if 'de' not in data.keys():
                 data1 = da.load_data(datapath1, sort_pos=True,
                                      collapse_subs=False,
                                      dict_convert=True,
                                      keep_experiments=experiment_keys)
-                m_data1 = da.simulate_data(data1, funcs1)
+                m_data1 = da.simulate_data(data1, funcs1, n_samples=n_samples)
                 data['de'] = (data1, m_data1)
             else:
                 data1, m_data1 = data['de']
@@ -487,7 +672,7 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
                             for pl in pred_loads[1:])
             axs_load = [ax1] + axs_load
             up = (f, axs_load)
-            _ = da.plot_experiment_func(ml_dict, log_y=False, 
+            _ = da.plot_experiment_func(ml_dict, log_y=False,
                                         data_color=data_color, 
                                         central_tendency=ct, legend=False,
                                         error_func=ef,  plot_fit=False,
@@ -521,5 +706,216 @@ def figure6(basefolder=bf, datapath1=None, modelpath1=None,
             [gpl.clean_plot(al, 1) for al in axs_col[1:]]
             
     fname = os.path.join(bf, 'fig6-py.svg')
+    f.savefig(fname, bbox_inches='tight', transparent=True)
+    return data
+
+def figure7(basefolder=bf, gen_panels=None, data=None):
+    setup()
+    if gen_panels is None:
+        gen_panels = ('ab', 'c', 'def', 'd', 'ef', 'e', 'f')
+    if data is None:
+        data = {}
+
+    fsize = (7.5, 5)
+    f = plt.figure(figsize=fsize)
+    gs = f.add_gridspec(100, 100)
+
+    eg_inp1 = gs[:20, :20]
+    eg_inp2 = gs[25:45, :20]
+    eg_hidden = gs[:45, 25:55]
+    eg_integ_corr = gs[:20, 65:85]
+    eg_integ_err = gs[25:45, 65:85]
+
+    train_12 = gs[:20, 90:]
+    train_23 = gs[25:45, 90:]
+
+    dist_match = gs[55:, :30]
+    asym_match = gs[55:, 36:63]
+    over_match = gs[55:, 69:]
+
+    p = 10
+    input_dists = (sts.uniform(0, p), sts.uniform(0, p), sts.uniform(0, p))
+    f1_inds = (1, 0)
+    f2_inds = (2, 0)
+    recon_inds = (1, 2)
+
+    f1_units = 30
+    f2_units = 30
+    recon_units = 30
+    hu_units = (900, 900)
+    train_size = 10e4
+
+    model_args = (f1_units, f2_units, recon_units, input_dists, 
+                  f1_inds, f2_inds, recon_inds)
+    model_kwargs = {'hu_units':hu_units}
+    
+    if 'ab' not in data.keys() and 'ab' in gen_panels:
+        m = ff.IntegrationModel(*model_args, **model_kwargs)
+        data['ab'] = m
+
+    eg_dists = ((0, 4), (1, 2), (2, 7))
+    eg_stim = 2
+
+    eg_i1_ax = f.add_subplot(eg_inp1, aspect='equal')
+    eg_i2_ax = f.add_subplot(eg_inp2, aspect='equal')
+    eg_h_ax = f.add_subplot(eg_hidden)
+    eg_corr_ax = f.add_subplot(eg_integ_corr, aspect='equal')
+    eg_err_ax = f.add_subplot(eg_integ_err, aspect='equal')
+    if 'ab' in gen_panels:
+        m = data['ab']
+        out = m.random_example(eg_stim, make_others=True, set_dists=eg_dists,
+                               noise_mag=0, topogriphy=True)
+        f1, f2, y, y_hat, inp, ys_all, ds = out
+        f1_c, f2_c, o_c = m.get_unique_cents()
+        f1_x = gpl.pcolormesh_axes(f1_c[0], len(f1_c[0]))
+        f1_y = gpl.pcolormesh_axes(f1_c[1], len(f1_c[1]))
+        eg_i1_ax.pcolormesh(f1_x, f1_y, f1)
+
+        f2_x = gpl.pcolormesh_axes(f2_c[0], len(f2_c[0]))
+        f2_y = gpl.pcolormesh_axes(f2_c[1], len(f2_c[1]))
+        eg_i2_ax.pcolormesh(f2_x, f2_y, f2)
+
+        o_x = gpl.pcolormesh_axes(o_c[0], len(o_c[0]))
+        o_y = gpl.pcolormesh_axes(o_c[1], len(o_c[1]))
+        eg_corr_ax.pcolormesh(o_x, o_y, ys_all[0])
+        eg_err_ax.pcolormesh(o_x, o_y, ys_all[1])
+
+    n_epochs = 20
+    train_size_th = 10e3
+    if 'c' not in data.keys() and 'c' in gen_panels:
+        m12 = ff.IntegrationModel(*model_args, **model_kwargs)
+        h12 = m12.train(1, validate_n=2, train_size=train_size_th,
+                        epochs=n_epochs)
+        
+        m23 = ff.IntegrationModel(*model_args, **model_kwargs)
+        h23 = m23.train(2, validate_n=3, train_size=train_size_th,
+                        epochs=n_epochs)
+        data['c'] = (h12, h23)
+
+    t12_ax = f.add_subplot(train_12)
+    t23_ax = f.add_subplot(train_23, sharex=t12_ax, sharey=t12_ax)
+    if 'c' in gen_panels:
+        h12, h23 = data['c']
+
+        x_epochs = np.arange(1, n_epochs + 1)
+        gpl.plot_trace_werr(x_epochs, h12.history['loss'], ax=t12_ax)
+        gpl.plot_trace_werr(x_epochs, h12.history['val_loss'], ax=t12_ax)
+        gpl.plot_trace_werr(x_epochs, h23.history['loss'], ax=t23_ax)
+        gpl.plot_trace_werr(x_epochs, h23.history['val_loss'], ax=t23_ax)
+
+
+    n_stim = 2
+    train_size = 10e4
+    if 'def' not in data.keys() and 'def' in gen_panels:
+        m = ff.IntegrationModel(*model_args, **model_kwargs)
+        m.train(n_stim, train_size=train_size)
+        data['def'] = m
+
+    n_stim = 2
+    n_est = 10e3
+    noise_mags = np.linspace(.1, 1, 3)
+    dists = np.linspace(.2, 3, 20)
+    use_dim = 0
+    excl_close = 2
+    boots = 1000
+    if 'd' not in data.keys() and 'd' in gen_panels:
+        m = data['def']
+        pairs = []
+        for nm in noise_mags:
+            dist_rates = m.estimate_ae_rate_dists(n_stim, dists, nm,
+                                                  n_est=n_est, dim=use_dim,
+                                                  excl_close=excl_close,
+                                                  boots=boots)
+            dist_theor = am.distance_error_rate(dists, None, .5*(nm**2))
+            pairs.append((dist_rates, dist_theor))
+        data['d'] = pairs
+
+    dist_m_ax = f.add_subplot(dist_match)
+    if 'd' in gen_panels:
+        pairs = data['d']
+        for i, (dist_rates, dist_theor) in enumerate(pairs):
+            nm = noise_mags[i]
+            l = gpl.plot_trace_werr(dists, dist_rates.T, ax=dist_m_ax,
+                                    error_func=gpl.conf95_interval,
+                                    label='D = {}'.format(nm))
+            col = l[0].get_color()
+            gpl.plot_trace_werr(dists, dist_theor[0], ax=dist_m_ax,
+                                color=col, linestyle='dashed')
+
+    # if 'ef' not in data.keys() and 'ef' in gen_panels:
+    #     input_dists = (sts.uniform(0, p),)*4
+    #     f1_inds = (3, 1, 0)
+    #     f2_inds = (2, 1, 0)
+    #     recon_inds = (3, 2)
+        
+    #     f1_units = 20
+    #     f2_units = 20
+    #     recon_units = 30
+    #     hu_units = (900, 900)
+    #     train_size = 10e4
+
+    #     model_args = (f1_units, f2_units, recon_units, input_dists, 
+    #                   f1_inds, f2_inds, recon_inds)
+    #     model_kwargs = {'hu_units':hu_units}
+    #     m = ff.IntegrationModel(*model_args, **model_kwargs)
+    #     m.train(n_stim, train_size=train_size)
+    #     data['ef'] = (data['def'], m), (1, 2)
+
+    asyms = np.linspace(0, .9, 3)
+    overall_d = .5
+    if 'e' not in data.keys() and 'e' in gen_panels:
+        m = data['def']
+        pairs = []
+        for a in asyms:
+            d1, d2 = am.d_func(a, overall_d)
+            nm = (np.sqrt(d1), np.sqrt(d2))
+            dist_rates = m.estimate_ae_rate_dists(n_stim, dists, nm,
+                                                  n_est=n_est, dim=use_dim,
+                                                  excl_close=excl_close,
+                                                  boots=boots)
+            dist_theor = am.distance_error_rate(dists, np.array([a]),
+                                                np.array([overall_d]))
+            pairs.append((dist_rates, dist_theor))
+        data['e'] = pairs
+
+    dist_m_ax = f.add_subplot(asym_match)
+    if 'e' in gen_panels:
+        pairs = data['e']
+        for i, (dist_rates, dist_theor) in enumerate(pairs):
+            nm = noise_mags[i]
+            l = gpl.plot_trace_werr(dists, dist_rates.T, ax=dist_m_ax,
+                                    error_func=gpl.conf95_interval,
+                                    label='D = {}'.format(nm))
+            col = l[0].get_color()
+            gpl.plot_trace_werr(dists, dist_theor[0], ax=dist_m_ax,
+                                color=col, linestyle='dashed')    
+            
+    noise_mags = np.linspace(.1, 1, 50)
+    n_est = 10e4
+    ns = (2, 3, 4)
+    if 'f' not in data.keys() and 'f' in gen_panels:
+        m = data['def']
+        pairs = []
+        srs = p/noise_mags
+        for i, n in enumerate(ns):
+            noise_rates = m.estimate_ae_rate_noise(n, noise_mags, n_est=n_est,
+                                                   excl_close=excl_close)
+            ds = noise_mags**2
+            theor_rates = am.integrate_assignment_error((n,), ds, ds, 1,
+                                                        p=p)
+            pairs.append((noise_rates, theor_rates, n))
+        data['f'] = srs, pairs
+
+    ae_rate_ax = f.add_subplot(over_match)
+    if 'f' in gen_panels:
+        srs, pairs = data['f']
+        for (nr, tr, n) in pairs:
+            l = gpl.plot_trace_werr(srs, nr.T, ax=ae_rate_ax,
+                                    error_func=gpl.conf95_interval,
+                                    log_x=True, log_y=True)
+            col = l[0].get_color()
+            gpl.plot_trace_werr(srs, tr, ax=ae_rate_ax, color=col)
+            
+    fname = os.path.join(bf, 'fig7-py.svg')
     f.savefig(fname, bbox_inches='tight', transparent=True)
     return data

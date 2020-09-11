@@ -5,6 +5,7 @@ import general.plotting as gpl
 import general.utility as u
 import scipy.stats as sts
 import scipy.integrate as sint
+import assignment.data_analysis as da
 
 def plot_eg_overlap(ax1, ax2, n_stim=2, eg_s=100, color1=(.6, .6, .6),
                     color2=(.6, .6, .6)):
@@ -138,6 +139,51 @@ def plot_ae_rate(a_rate, a_approx, pr, s_counts, ax, colors=None):
     ax.set_xlabel(r'precision ratio ($s/D_{X/Y}$)')
     ax.set_ylabel('assignment error rate')
 
+def plot_stan_model(model, ae_ax, dist_ax, uni_ax, n=4, spacing=np.pi/4, sz=8):
+    m = model[0]
+    rb_means = np.mean(m.samples['report_bits'], axis=0)
+    db_means = np.mean(m.samples['dist_bits'], axis=0)
+    sm_means = np.mean(m.samples['stim_mem'], axis=0)
+    ae_prob, _ = da.ae_var_discrete(db_means, n, spacing=spacing,
+                                    sz=sz)
+    unif_prob = da.uniform_prob(sm_means, n)
+    dist = da.dr_gaussian(rb_means, n)
+    subj_xs = np.random.randn(len(dist))
+    x_pos = np.array([0])
+    ae_prob_arr = np.expand_dims(ae_prob, 1)
+    p = ae_ax.violinplot(ae_prob, positions=x_pos,
+                               showextrema=False)
+    gpl.plot_trace_werr(x_pos, ae_prob_arr, points=True,
+                        ax=ae_ax,
+                        error_func=gpl.conf95_interval)
+
+    dist_arr = np.expand_dims(dist, 1)
+    p = dist_ax.violinplot(dist, positions=x_pos,
+                         showextrema=False)
+    gpl.plot_trace_werr(x_pos, dist_arr, points=True,
+                        ax=dist_ax,
+                        error_func=gpl.conf95_interval)
+
+    up_arr = np.expand_dims(unif_prob, 1)
+    p = uni_ax.violinplot(up_arr, positions=x_pos,
+                         showextrema=False)
+    gpl.plot_trace_werr(x_pos, up_arr, points=True,
+                        ax=uni_ax,
+                        error_func=gpl.conf95_interval)
+
+    gpl.clean_plot(ae_ax, 0)
+    gpl.clean_plot_bottom(ae_ax)
+    gpl.clean_plot(dist_ax, 0)
+    gpl.clean_plot_bottom(dist_ax)
+    gpl.clean_plot(uni_ax, 0)
+    gpl.clean_plot_bottom(uni_ax)
+    gpl.make_yaxis_scale_bar(ae_ax, anchor=0, magnitude=.2, double=False,
+                             label='assignment\nerror rate', text_buff=.95)
+    gpl.make_yaxis_scale_bar(dist_ax, anchor=0, magnitude=.5, double=False,
+                             label='local distortion\n(MSE)', text_buff=.8)
+    gpl.make_yaxis_scale_bar(uni_ax, anchor=0, magnitude=.2, double=False,
+                             label='guess rate', text_buff=.7)
+    
 def plot_multidim_schem(p1, p2, ax, non_alpha=.5):
     p1 = np.array(p1)
     p2 = np.array(p2)

@@ -341,7 +341,10 @@ def distance_error_rate(dists, delta_d, overall_d):
     for i, dist in enumerate(dists):
         for j, d1 in enumerate(d1s):
             d2 = d2s[j]
-            dist_err[j, i] = sts.norm(dist, np.sqrt(d1 + d2)).cdf(0)
+            ep1 = sts.norm(dist, np.sqrt(2*d1)).cdf(0)
+            ep2 = sts.norm(dist, np.sqrt(2*d2)).cdf(0)
+            dist_err[j, i] = ep1 + ep2 - 2*ep1*ep2
+            # dist_err[j, i] = sts.norm(dist, np.sqrt(d1 + d2)).cdf(0)
     return dist_err
 
 def distance_mse(dists, delta_d, overall_d, s=100):

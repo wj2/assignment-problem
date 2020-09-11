@@ -59,30 +59,30 @@ if __name__ == '__main__':
     stan_params = {'iter':args.length, 'control':control, 'chains':args.chains,
                    'test_grad':args.test_grad}
     
-    rbmm = 5
-    rbmv = 10
-    rbvm = 2
+    rbmm = 6
+    rbmv = 6
+    rbvm = 3
     rbvv = 5
     
-    dbmm = rbmm
-    dbmv = rbmv
-    dbvm = rbvm
-    dbvv = rbvv
+    dbmm = 4
+    dbmv = 5
+    dbvm = 4
+    dbvv = 4
     
-    mdmm = 1
-    mdmv = 2
-    mdvm = .5
-    mdvv = .5
+    mdmm = .2
+    mdmv = .2
+    mdvm = .2
+    mdvv = .2
 
     enmm = 3
     enmv = 2
     envm = 2
     envv = 1
 
-    smmm = 3
-    smmv = 2
-    smvm = 2
-    smvv = 1
+    smmm = 4
+    smmv = 3
+    smvm = 3
+    smvv = 3
     
     lrbk = 7.5
     lrbt = .5

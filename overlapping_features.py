@@ -7,7 +7,6 @@ import scipy.special as ss
 import scipy.stats as sts
 import scipy.integrate as sin
 import scipy.optimize as sio
-import skopt as sko
 import joblib as jl
 
 import general.utility as u
@@ -447,26 +446,6 @@ def _ae_ev_loss(*args, target_ae=.001, **kwargs):
     targ = float(100000000*(aes - target_ae)**2 + ds**2)
     print(aes, target_ae, targ)
     return targ
-
-def ev_fixed_ae(bit, k, s, n_stim, fix_ae=.0001, source_distrib='uniform',
-                eps=1e-4):
-    delts = np.zeros(k)
-    aes_evs = np.zeros((k, 2))
-    for c_i in range(1, k + 1):
-        min_func = ft.partial(_ae_ev_loss, bit, k, c_i, n_stim, s,
-                              source_distrib=source_distrib,
-                              target_ae=fix_ae)
-        delt_x0 = (0.001,)
-        bounds = ((0, 1 - eps),)
-        y0 = min_func(delt_x0)
-        out = sko.gp_minimize(min_func, bounds)
-        # out = sio.minimize(min_func, delt_x0, bounds=bounds)
-        res = _get_ae_ev(bit, k, c_i, n_stim, s, out.x,
-                         source_distrib=source_distrib)
-        print('res', res)
-        delts[c_i - 1] = out.x[0]
-        aes_evs[c_i - 1] = res
-    return delts, aes_evs
 
 def ae_ev_bits(bits, k, s, n_stim, c_xys, delts,
                source_distrib='uniform', compute_redund=False):

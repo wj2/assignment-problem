@@ -551,7 +551,7 @@ def ae_sample(esses, d1, d2, overlapping_d, p=1, n_samples=10**6, **kwargs):
     return errs        
 
 def ae_integ(esses, d1, d2, p=1, integ_start=0, integ_end=None, dist_pdf=None,
-             err_thr=.01):
+             err_thr=.01, assert_=False):
     pes = np.zeros_like(d1)
     for i, d1_i in enumerate(d1):
         d2_i = d2[i]
@@ -564,7 +564,10 @@ def ae_integ(esses, d1, d2, p=1, integ_start=0, integ_end=None, dist_pdf=None,
             return v
            
         pes[i], err = sin.quad(_f, integ_start, integ_end)
-        assert err < err_thr
+        if assert_:
+            assert err < err_thr
+        elif err > err_thr:
+            pes[i] = np.nan
     errs = np.zeros((len(esses), len(d1)))
     for i, s in enumerate(esses):
         errs[i] = ss.comb(s, 2)*pes

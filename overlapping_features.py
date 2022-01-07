@@ -2,12 +2,168 @@
 import warnings
 import numpy as np
 import itertools as it
+import functools as ft
 import scipy.special as ss
 import scipy.stats as sts
 import scipy.integrate as sin
 import scipy.optimize as sio
+import skopt as sko
+import joblib as jl
 
 import general.utility as u
+import general.rf_models as rfm
+
+def _split_integer(num, parts):
+    """ taken from 
+    https://stackoverflow.com/questions/55465884/
+    how-to-divide-an-unknown-integer-into-a-given-
+    number-of-even-parts-using-python """
+    quotient, remainder = divmod(num, parts)
+    lower_elements = list(quotient for i in range(parts - remainder))
+    higher_elements = list(quotient + 1 for j in range(remainder))
+    return lower_elements + higher_elements
+
+def weighted_tradeoff(distorts, ae_rates, weight, overlap_dim=2):
+    w_arr = {nr:distorts[nr] + weight*ae_rates[nr] for nr in distorts.keys()}
+    w_arr[1] = np.mean(w_arr[1], axis=overlap_dim, keepdims=True)
+    diff_mat = w_arr[1] - w_arr[2]
+    opt_overlap = np.argmin(w_arr[2], axis=2).astype(float)
+    opt_overlap[np.all(diff_mat < 0, axis=overlap_dim)] = np.nan
+    return w_arr, opt_overlap
+
+@u.arg_list_decorator
+def explore_fi_tradeoff(n_units, total_dims, overlaps, total_pwrs,
+                        n_regions=(1, 2), **kwargs):
+    arr_shape = (len(n_units), len(total_dims), len(overlaps),
+                 len(total_pwrs))
+    distorts = {nr:np.zeros(arr_shape) for nr in n_regions}
+    ae_rates = {nr:np.zeros_like(distorts[nr]) for nr in n_regions}
+    for ind in u.make_array_ind_iterator(arr_shape):
+        i, j, k, l = ind
+        ds, aers = fi_tradeoff(n_units[i], total_dims[j], n_regions=n_regions,
+                               overlap=overlaps[k], total_pwr=total_pwrs[l],
+                               **kwargs)
+        for k, d_k in ds.items():
+            distorts[k][ind] = np.mean(d_k)
+            ae_rates[k][ind] = np.mean(aers[k])
+    return distorts, ae_rates
+
+
+@u.arg_list_decorator
+def explore_fi_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
+                                 n_regions=(1, 2), n_jobs=-1, **kwargs):
+    arr_shape = (len(n_units), len(total_dims), len(overlaps),
+                 len(total_pwrs))
+    distorts = {nr:np.zeros(arr_shape) for nr in n_regions}
+    ae_rates = {nr:np.zeros_like(distorts[nr]) for nr in n_regions}
+
+    def _fi_tradeoff_helper(ind):
+        i, j, k, l = ind
+        ds, aers = fi_tradeoff(n_units[i], total_dims[j], n_regions=n_regions,
+                               overlap=overlaps[k], total_pwr=total_pwrs[l],
+                               **kwargs)
+        return ind, ds, aers
+
+    ind_iter = u.make_array_ind_iterator(arr_shape)
+    par = jl.Parallel(n_jobs=n_jobs)
+    out = par(jl.delayed(_fi_tradeoff_helper)(ind) for ind in ind_iter)
+    for ind, ds, aers in out:
+        for k, d_k in ds.items():
+            distorts[k][ind] = np.mean(d_k)
+            ae_rates[k][ind] = np.mean(aers[k])
+    return distorts, ae_rates
+
+def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
+                n_stim=2, total_pwr=10, use_theory=True, ret_min_max=True,
+                lambda_deviation=2, **kwargs):
+    distorts = {}
+    ae_rates = {}
+    for nr in n_regions:
+        dims_to_rep = total_dims + overlap*(nr > 1)
+        dims_per_region = _split_integer(dims_to_rep, nr)
+        distorts[nr] = np.zeros(nr)
+        for i, dpr_i in enumerate(dims_per_region):
+            ri_pwr = total_pwr*dpr_i/dims_to_rep
+            ri_units = int(np.round(total_units*dpr_i/dims_to_rep))
+            if use_theory:
+                out = rfm.max_fi_power(ri_pwr, ri_units, dpr_i,
+                                       ret_min_max=ret_min_max,
+                                       lambda_deviation=lambda_deviation)
+                fi, fi_var, pwr, w, scale = out
+                distorts[nr][i] = 1/fi[0, 0]
+            else:
+                distorts[nr][i] = rf_distortion(ri_units, dpr_i,
+                                                scale=ri_pwr,
+                                                **kwargs)
+        ae_nr = 0
+        for (j, k) in it.combinations(range(nr), 2):
+            ae_risk = integrate_assignment_error((n_stim,), distorts[nr][j:j+1],
+                                                 distorts[nr][k:k+1], overlap, p=1)
+            ae_nr = ae_nr + ae_risk
+        ae_rates[nr] = ae_nr
+    return distorts, ae_rates
+
+def get_fi_mat(s_d, inv_cov, identity=True):
+    n_dims = s_d.shape[-1]
+    fi_mat = np.zeros((s_d.shape[0], n_dims, n_dims))
+    fi_mat[:] = np.nan
+    for (i, j) in it.product(range(n_dims), repeat=2):
+        if np.all(np.isnan(fi_mat[:, i, j])):
+            if identity:
+                nv = inv_cov[np.identity(inv_cov.shape[0], dtype=bool)]
+                s1 = np.expand_dims(nv, 0)*s_d[..., j]
+            else:
+                s1 = np.dot(inv_cov, s_d[..., j].T).T
+            fi_mat[:, i, j] = np.sum(s_d[..., i]*s1, axis=1)
+            fi_mat[:, j, i] = fi_mat[:, i, j]
+    mfi_mat = np.mean(fi_mat, axis=0)
+    sfi_mat = np.var(fi_mat, axis=0)
+    print('m2 emp', np.mean(fi_mat[:, 0, 0]**2, axis=0))
+    print('m  emp', np.mean(fi_mat[:, 0, 0], axis=0)**2)
+    print('v  emp', np.mean(fi_mat[:, 0, 0]**2, axis=0) -
+          np.mean(fi_mat[:, 0, 0], axis=0)**2)
+    # inv_mfi_mat = np.linalg.inv(mfi_mat)
+    return mfi_mat, sfi_mat
+
+def get_rad(s_r):
+    return np.sum(s_r**2, axis=1)
+
+def rf_distortion_theory(n_units, n_dims, input_distr_type='uniform',
+                         pwr=1, var=1, use_rand_rfs=True):
+    if input_distr_type != 'uniform':
+        raise IOError('only "uniform" input_distr_type is supported')
+    if not use_rand_rfs:
+        raise IOError('only use_rand_rfs is supported')
+    distrs = (sts.uniform(0, 1),)*n_dims
+    stim_distr = u.MultivariateUniform(n_dims, (0, 1))
+
+    ms, ws = rfm.get_random_uniform_fill(n_units, distrs)
+    orig_pwr = rfm.random_uniform_pwr(n_units, np.sqrt(ws[0]), n_dims)
+    rescale = np.sqrt(pwr/orig_pwr)
+    fi_theor = rfm.random_uniform_fi(n_units, np.sqrt(ws[0]), n_dims,
+                                     scale=rescale, sigma_n=var)
+    return np.linalg.inv(fi_theor)[0, 0]
+
+def rf_distortion(n_units, n_dims, input_distr_type='uniform', 
+                  scale=1, wid_scaling=1, baseline=0, var=1,
+                  use_rand_rfs=True, n_samps=1000, wid=None):
+    distr_list = (sts.uniform(0, 1),)*n_dims
+    stim_distr = u.MultivariateUniform(n_dims, (0, 1))
+    n_units_pd = int(np.round(n_units**(1/n_dims)))
+    inv_cov = np.identity(n_units)/var
+    if use_rand_rfs:
+        ms, ws = rfm.get_random_uniform_fill(n_units, distr_list, wid=wid)
+    else:
+        ms, ws = rfm.get_output_func_distribution_shapes(n_units_pd, distr_list,
+                                                         wid_scaling=wid_scaling)
+    rf, drf = rfm.make_gaussian_vector_rf(ms, ws, scale, baseline,
+                                          titrate_pwr=stim_distr)
+    samps = stim_distr.rvs(n_samps)
+    s_d = drf(samps)
+    fi, inv_fi = get_fi_mat(s_d, inv_cov)
+    pwr = np.mean(get_rad(rf(samps)))
+    distortion = np.mean(inv_fi[np.identity(n_dims, dtype=bool)])
+    return fi[0, 0], pwr, distortion
 
 def fixed_distance_errors(d, dx, dy, n_ests=1000, p=100, c=1, boot=False):
     err = np.zeros(n_ests)
@@ -275,6 +431,43 @@ def dxdy_from_dsdelt(ds, delt):
     dy = 2*ds/(1 - delt)
     return dx, dy
 
+def _get_ae_ev(bit, k, c_xy, n_stim, s, delt, source_distrib='uniform'):
+    delt = delt[0]
+    ds = compute_ds(bit, k, c_xy, delt, n_stim, s=s,
+                    source_distrib=source_distrib)
+    dx, dy = dxdy_from_dsdelt(ds, delt)
+    dx = np.array([dx])
+    dy = np.array([dy])
+    aes = integrate_assignment_error((n_stim,), dx, dy, c_xy,
+                                     p=s)
+    return aes[0, 0], ds
+
+def _ae_ev_loss(*args, target_ae=.001, **kwargs):
+    aes, ds = _get_ae_ev(*args, **kwargs)
+    targ = float(100000000*(aes - target_ae)**2 + ds**2)
+    print(aes, target_ae, targ)
+    return targ
+
+def ev_fixed_ae(bit, k, s, n_stim, fix_ae=.0001, source_distrib='uniform',
+                eps=1e-4):
+    delts = np.zeros(k)
+    aes_evs = np.zeros((k, 2))
+    for c_i in range(1, k + 1):
+        min_func = ft.partial(_ae_ev_loss, bit, k, c_i, n_stim, s,
+                              source_distrib=source_distrib,
+                              target_ae=fix_ae)
+        delt_x0 = (0.001,)
+        bounds = ((0, 1 - eps),)
+        y0 = min_func(delt_x0)
+        out = sko.gp_minimize(min_func, bounds)
+        # out = sio.minimize(min_func, delt_x0, bounds=bounds)
+        res = _get_ae_ev(bit, k, c_i, n_stim, s, out.x,
+                         source_distrib=source_distrib)
+        print('res', res)
+        delts[c_i - 1] = out.x[0]
+        aes_evs[c_i - 1] = res
+    return delts, aes_evs
+
 def ae_ev_bits(bits, k, s, n_stim, c_xys, delts,
                source_distrib='uniform', compute_redund=False):
     aes = np.zeros((len(c_xys), len(delts), len(bits)))
@@ -327,12 +520,15 @@ def integrate_assignment_error(esses, d1, d2, overlapping_d, p=100):
     elif overlapping_d == 3:
         dist_pdf = line_picking_cube
     else:
-        if overlapping_d < 10:
-            print('Using CLT approximation for a small overlap, probably'
-                  ' will not be accurate. {} < 10'.format(overlapping_d))
+        # if overlapping_d < 10:
+        #     print('Using CLT approximation for a small overlap, probably'
+        #           ' will not be accurate. {} < 10'.format(overlapping_d))
         dist_pdf = lambda x: line_picking_clt(x, overlapping_d)
-    ae = ae_integ(esses, d1, d2, p=p, integ_start=0, integ_end=integ_end,
-                  dist_pdf=dist_pdf)
+    if overlapping_d < 3 or overlapping_d > 10:
+        ae = ae_integ(esses, d1, d2, p=p, integ_start=0, integ_end=integ_end,
+                      dist_pdf=dist_pdf)
+    else:
+        ae = ae_sample(esses, d1, d2, overlapping_d, p=p)
     return ae
 
 def distance_error_rate(dists, delta_d, overall_d):
@@ -359,6 +555,21 @@ def distance_mse(dists, delta_d, overall_d, s=100):
             pe = dist_err[i, j]
             distortion[i, j] = (1 - pe)*low_bound + pe*high_bound
     return dist_err, distortion, low_bound, high_bound, right_bound
+
+def ae_sample(esses, d1, d2, overlapping_d, p=1, n_samples=10**6, **kwargs):
+    pes = np.zeros_like(d1)
+    for i, d1_i in enumerate(d1):
+        d2_i = d2[i]
+        pts = np.random.default_rng().uniform(size=(n_samples*2, overlapping_d))
+        xs = np.sqrt(np.sum(np.diff(pts, axis=0)**2, axis=1))[::2]
+        v2 = sts.norm(xs, np.sqrt(2*d1_i)).cdf(0)
+        v3 = sts.norm(xs, np.sqrt(2*d2_i)).cdf(0)
+        v = (v2 + v3 - 2*v2*v3)
+    pes[i] =  np.mean(v)
+    errs = np.zeros((len(esses), len(d1)))
+    for i, s in enumerate(esses):
+        errs[i] = ss.comb(s, 2)*pes
+    return errs        
 
 def ae_integ(esses, d1, d2, p=1, integ_start=0, integ_end=None, dist_pdf=None,
              err_thr=.01):

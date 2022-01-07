@@ -16,7 +16,7 @@ from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
 from assignment.figure_helpers import *
 
 bf = ('/Users/wjj/Dropbox/research/uc/freedman/analysis/'
-              'assignment/figs/')
+      'assignment/figs/')
 colors = gps.nms_colors
 n_colors = gps.assignment_num_colors
 r_colors = np.array([[186, 143, 149],

@@ -18,7 +18,7 @@ class IntegrationModel():
 
     def __init__(self, f1_units, f2_units, out_units, input_distributions,
                  f1_inds, f2_inds, recon_inds, hu_units=None, act_func='relu',
-                 scale=1, baseline=0, **kwargs):
+                 scale=1, baseline=0, noise=.1, **kwargs):
         self.f1_inds = np.array(f1_inds, dtype=int)
         self.f2_inds = np.array(f2_inds, dtype=int)
         self.recon_inds = np.array(recon_inds, dtype=int)
@@ -50,7 +50,8 @@ class IntegrationModel():
         if hu_units is None:
             hu_units = (out_units**len(self.input_distributions),)
         self.model = self._construct_network(hu_units, out_units,
-                                             act_func=act_func, **kwargs)
+                                             act_func=act_func,
+                                             noise=noise, **kwargs)
         self._model_compiled = False
 
     def compile(self, loss=keras.losses.MeanSquaredError(), **kwargs):
@@ -125,10 +126,12 @@ class IntegrationModel():
         
     def _construct_network(self, hu_ns, out_units, act_func='relu',
                            activity_regularizer=regularizers.L2(.05),
-                           **kwargs):
+                           noise=0, **kwargs):
         ls = []
         for n in hu_ns:
             ls.append(layers.Dense(n, activation=act_func, **kwargs))
+            if noise > 0:
+                ls.append(layers.GaussianNoise(noise))
         out_units_n = out_units**len(self.recon_inds)
         ls.append(layers.Dense(out_units_n))
         model = keras.Sequential(ls)

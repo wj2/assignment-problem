@@ -68,13 +68,13 @@ def explore_fi_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
     out = par(jl.delayed(_fi_tradeoff_helper)(ind) for ind in ind_iter)
     for ind, ds, aers in out:
         for k, d_k in ds.items():
-            distorts[k][ind] = np.mean(d_k)
+            distorts[k][ind] = np.mean(d_k) # np.product(d_k)/np.sum(d_k)
             ae_rates[k][ind] = np.mean(aers[k])
     return distorts, ae_rates
 
 def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                 n_stim=2, total_pwr=10, use_theory=True, ret_min_max=True,
-                lambda_deviation=2, **kwargs):
+                lambda_deviation=2, opt_kind='basinhop', **kwargs):
     distorts = {}
     ae_rates = {}
     for nr in n_regions:
@@ -87,7 +87,8 @@ def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
             if use_theory:
                 out = rfm.max_fi_power(ri_pwr, ri_units, dpr_i,
                                        ret_min_max=ret_min_max,
-                                       lambda_deviation=lambda_deviation)
+                                       lambda_deviation=lambda_deviation,
+                                       opt_kind=opt_kind)
                 fi, fi_var, pwr, w, scale = out
                 distorts[nr][i] = 1/fi[0, 0]
             else:

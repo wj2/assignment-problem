@@ -9,8 +9,9 @@ if __name__ == '__main__':
     total_units = np.logspace(3, 6, 15, dtype=int)
     total_pwrs = np.logspace(1, 4, 15)
     overlaps = (1, 2, 3, 4, 5)
+    opt_kind = 'basinhop'
 
     out = am.explore_fi_tradeoff_parallel(total_units, n_features, overlaps,
-                                          total_pwrs)
+                                          total_pwrs, opt_kind=opt_kind)
     savename = 'many_tradeoffs.pkl'
     pickle.dump(out, open(os.path.join('assignment/', savename), 'wb'))

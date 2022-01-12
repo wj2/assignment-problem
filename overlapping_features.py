@@ -22,12 +22,34 @@ def _split_integer(num, parts):
     higher_elements = list(quotient + 1 for j in range(remainder))
     return lower_elements + higher_elements
 
-def weighted_tradeoff(distorts, ae_rates, weight, overlap_dim=2):
-    w_arr = {nr:distorts[nr] + weight*ae_rates[nr] for nr in distorts.keys()}
+def _compute_assignment_distortion(n_feats, overlaps, num_regions):
+    overlaps = np.array(overlaps)
+    left_out = np.zeros((len(n_feats), len(overlaps)))
+    for (i, j) in u.make_array_ind_iterator(left_out.shape):
+        nf = n_feats[i]
+        overlap = overlaps[j]
+        left_out[i, j] = nf - max(_split_integer(nf + overlap, num_regions))
+    left_out[left_out <= 0] = 0
+    print(left_out)
+    ws = left_out/6
+    # ws[ws <= 0] = 0
+    ws = np.expand_dims(ws, 0)
+    ws = np.expand_dims(ws, -1)
+    return ws    
+
+def weighted_tradeoff(distorts, ae_rates, n_features, overlaps, overlap_dim=2,
+                      n_feat_dim=1):
+    weight = {nr:_compute_assignment_distortion(n_features, overlaps, nr)
+              for nr in distorts.keys()}
+    w_arr = {nr:distorts[nr] + weight[nr]*ae_rates[nr] for nr in distorts.keys()}
     w_arr[1] = np.mean(w_arr[1], axis=overlap_dim, keepdims=True)
     diff_mat = w_arr[1] - w_arr[2]
+    print(diff_mat.shape)
     opt_overlap = np.argmin(w_arr[2], axis=2).astype(float)
-    opt_overlap[np.all(diff_mat < 0, axis=overlap_dim)] = np.nan
+    opt_overlap = np.argmax(diff_mat, axis=2).astype(float)
+    print(diff_mat[:, 0, :, 0].shape)
+    print(diff_mat[:, 0, :, 0])
+    opt_overlap[np.all(diff_mat <= 0, axis=overlap_dim)] = np.nan
     return w_arr, opt_overlap
 
 @u.arg_list_decorator
@@ -88,7 +110,7 @@ def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                 out = rfm.max_fi_power(ri_pwr, ri_units, dpr_i,
                                        ret_min_max=ret_min_max,
                                        lambda_deviation=lambda_deviation,
-                                       opt_kind=opt_kind)
+                                       opt_kind=opt_kind, **kwargs)
                 fi, fi_var, pwr, w, scale = out
                 distorts[nr][i] = 1/fi[0, 0]
             else:
@@ -504,7 +526,7 @@ def integrate_assignment_error(esses, d1, d2, overlapping_d, p=100):
         #     print('Using CLT approximation for a small overlap, probably'
         #           ' will not be accurate. {} < 10'.format(overlapping_d))
         dist_pdf = lambda x: line_picking_clt(x, overlapping_d)
-    if overlapping_d < 3 or overlapping_d > 10:
+    if overlapping_d <= 3 or overlapping_d > 10:
         ae = ae_integ(esses, d1, d2, p=p, integ_start=0, integ_end=integ_end,
                       dist_pdf=dist_pdf)
     else:
@@ -536,7 +558,7 @@ def distance_mse(dists, delta_d, overall_d, s=100):
             distortion[i, j] = (1 - pe)*low_bound + pe*high_bound
     return dist_err, distortion, low_bound, high_bound, right_bound
 
-def ae_sample(esses, d1, d2, overlapping_d, p=1, n_samples=10**6, **kwargs):
+def ae_sample(esses, d1, d2, overlapping_d, p=1, n_samples=10**7, **kwargs):
     pes = np.zeros_like(d1)
     for i, d1_i in enumerate(d1):
         d2_i = d2[i]

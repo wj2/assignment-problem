@@ -7,11 +7,13 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import numpy as np
 import arviz as av
+import pickle
 import scipy.stats as sts
 import os
 import assignment.ff_integration as ff
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
+import general.rf_models as rfm
 
 from assignment.figure_helpers import *
 
@@ -430,6 +432,186 @@ def figure5(basefolder=bf, gen_panels=None, data=None):
     gpl.clean_plot(aed_ax, 1)
     fname = os.path.join(bf, 'fig5-py.svg')
     f.savefig(fname, bbox_inches='tight', transparent=True)
+    return data
+
+def _plot_rfs(rf_cents, rf_wids, ax, scale=(0, 1), thin=5, color=None,
+              plot_dots=False, make_scales=True):
+    cps = u.get_circle_pts(100, 2)
+
+    for i, rfc in enumerate(rf_cents[::thin]):
+        rfw = 10*np.sqrt(rf_wids[i])
+        l = ax.plot(cps[:, 0]*rfw[0] + rfc[0],
+                    cps[:, 1]*rfw[1] + rfc[1],
+                    color=color,
+                    linewidth=1)
+        if plot_dots:
+            ax.plot(rfc[0], rfc[1], 'o',
+                    color=l[0].get_color())
+    if make_scales:
+        gpl.make_xaxis_scale_bar(ax, 1, label='dimension 1', double=False)
+        gpl.make_yaxis_scale_bar(ax, 1, label='dimension 2', double=False)
+        gpl.clean_plot(ax, 0)
+
+def figure_fi(basefolder=bf, gen_panels=None, data=None):
+    setup()
+    if gen_panels is None:
+        gen_panels = ('a', 'bc', 'de')
+    if data is None:
+        data = {}
+
+    fsize = (5, 4)
+    f = plt.figure(figsize=fsize)
+    gs = f.add_gridspec(100, 100)
+
+    schem_grid = gs[:33, :33]
+    mse_nu_grid = gs[:33, 40:65]
+    ae_nu_grid = gs[:33, 75:]
+
+    iso_grid = gs[40:, :33]
+    iso_inset_grid = gs[42:70, 20:33]
+    map_grid = gs[40:, 50:]
+
+    if data.get('a') is None and 'a' in gen_panels:
+        rf_distrs = (sts.uniform(0, 1),)*2
+        n_units = 1000
+        rf_cents, rf_wids = rfm.get_random_uniform_fill(n_units, rf_distrs)
+        data['a'] = (rf_cents, rf_wids)
+
+    schem_ax = f.add_subplot(schem_grid)
+    if 'a' in gen_panels:
+        rf_cents, rf_wids = data['a']
+        _plot_rfs(rf_cents, rf_wids, schem_ax)
+
+    overlaps = (1, 2)
+    n_n_units = 20
+    n_units = np.logspace(2, 3, n_n_units, dtype=int)
+    if data.get('bc') is None and 'bc' in gen_panels:
+        total_feats = 2
+        pwr = 10
+        fi_theor = np.zeros((len(overlaps), len(n_units)))
+        fi_emp = np.zeros_like(fi_theor)
+        ae_theor = np.zeros_like(fi_theor)
+        for i, ov in enumerate(overlaps):
+            n_feats = total_feats + ov
+            rf_distrs = (sts.uniform(0, 1),)*n_feats
+            stim_distr = u.MultivariateUniform(n_feats, (0, 1))
+            for j, nu in enumerate(n_units):
+                fi, fi_var, _, w, _ = rfm.max_fi_power(pwr, nu, n_feats)
+                fi_theor[i, j] = fi[0, 0]
+            
+                rf_cents, rf_wids = rfm.get_random_uniform_fill(nu, rf_distrs)
+                use_wids = np.ones_like(rf_wids)*w**2
+                fi, pwr, distortion = am.compute_fi(rf_cents, use_wids, pwr,
+                                                    stim_distr)
+                fi_emp[i, j] = fi
+
+                r_distort = np.array([1/fi_theor[i, j]])
+                ae_theor[i, j] = am.integrate_assignment_error(
+                    (2,), r_distort, r_distort, ov, p=1)
+
+        data['bc'] = (fi_emp, fi_theor, ae_theor)
+
+    mse_nu_ax = f.add_subplot(mse_nu_grid)
+    ae_nu_ax = f.add_subplot(ae_nu_grid)
+    if 'bc' in gen_panels:
+        fi_emp, fi_theor, ae_theor = data['bc']
+        for i, ov in enumerate(overlaps):
+            l = gpl.plot_trace_werr(n_units, 1/fi_emp[i], ax=mse_nu_ax,
+                                    log_x=True, log_y=True)
+            gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_nu_ax, log_x=True,
+                                log_y=True, color=l[0].get_color(),
+                                linestyle='dashed')
+            gpl.plot_trace_werr(n_units, ae_theor[i], ax=ae_nu_ax, log_x=True,
+                                log_y=True)
+
+    data_path = 'assignment/many_tradeoffs_brute_nr3.pkl'
+    if data.get('de') is None and 'de' in gen_panels:
+        out = pickle.load(open(data_path, 'rb'))
+        
+        n_features = (4, 5, 6, 7, 8, 9, 10, 12)
+        total_units = np.logspace(3, 6, 15, dtype=int)
+        total_pwrs = np.logspace(1, 4, 15)
+        overlaps = (1, 2, 3, 4, 5)
+        ax_vals = (n_features, total_units, total_pwrs, overlaps)
+        data['de'] = (ax_vals, out)
+
+    iso_ax = f.add_subplot(iso_grid)
+    iso_inset_ax = f.add_subplot(iso_inset_grid)
+    map_ax = f.add_subplot(map_grid)
+    if 'de' in gen_panels:
+        ax_vals, (mse_dist, ae_rate) = data['de']
+        n_feats, total_units, total_pwrs, overlaps = ax_vals
+        pwr_ind = 5
+        feat_ind = 0
+        var = 1/6
+        use_regions = 2
+        td_thresh = .01
+        region_list = []
+        min_maps = []
+        
+        for k, mse_r in mse_dist.items():            
+            ae_r = ae_rate[k]
+            td_maps = []
+            rep_feats = []
+            for i, ov in enumerate(overlaps):
+                total_rep_feats = n_feats[feat_ind] + (k - 1)*ov
+                smaller_feat = min(am._split_integer(total_rep_feats, k))
+                rep_feats.append(smaller_feat)
+                ae_distortion = 2*smaller_feat*var
+                spec_mse = 2*mse_r*(1 - ae_r)
+                spec_ae_dist = ae_r*ae_distortion
+                if k == use_regions:
+                    l = gpl.plot_trace_werr(spec_mse[:, feat_ind, i, pwr_ind],
+                                            spec_ae_dist[:, feat_ind, i, pwr_ind],
+                                            ax=iso_ax, label='C = {}'.format(ov),
+                                            points=True, markersize=3)
+                    col = l[0].get_color()
+                    td_i = (spec_mse[:, feat_ind, i, pwr_ind]
+                            + spec_ae_dist[:, feat_ind, i, pwr_ind])
+                    td_pt = total_units[td_i < td_thresh][0]
+                    iso_inset_ax.plot([ov], [td_pt], 'o', color=col)
+                
+                td_map = (spec_mse[:, feat_ind, i, :]
+                          + spec_ae_dist[:, feat_ind, i, :])
+                td_maps.append(td_map)
+            full_map_k = np.stack(td_maps, axis=0)
+            min_map_k = np.min(full_map_k, axis=0)
+            print('k', k)
+            print(np.array(overlaps)[np.argmin(full_map_k, axis=0)])
+            print(np.array(rep_feats)[np.argmin(full_map_k, axis=0)])
+            min_maps.append(min_map_k)
+            region_list.append(k)
+        min_regions = np.stack(min_maps, axis=0)
+        num_regions = np.argmin(min_regions, axis=0)
+        plot_map = np.array(region_list)[num_regions]
+        gpl.pcolormesh(total_units, total_pwrs, plot_map, ax=map_ax)
+        map_ax.set_xscale('log')
+        map_ax.set_yscale('log')
+        print(plot_map)
+            
+        # iso_ax.set_aspect('equal')
+        rads = [.01, .02]
+        labels = ['constant\ntotal distortion', '']
+        for i, rad in enumerate(rads):
+            pts = np.linspace(0, np.pi/2, 100)
+            y = rad*np.sin(pts)
+            x = rad*np.cos(pts)
+            iso_ax.plot(x, y, linestyle='dashed', color='k',
+                        label=labels[i])
+        iso_ax.legend(frameon=False)
+        iso_ax.set_xlabel('local MSE')
+        iso_ax.set_ylabel('assignment MSE')
+
+        gpl.clean_plot(iso_inset_ax, 0)
+        iso_inset_ax.set_yscale('log')
+        iso_inset_ax.set_xlabel('C')
+        iso_inset_ax.set_ylabel('units required for\n'
+                                'total distortion < {}'.format(td_thresh))
+
+
+    # plot transition map between two and three regions
+    # for final piece
+    
     return data
 
 def figure6_alt(basefolder=bf, mp1=None, mp2=None, mp3=None, gen_panels=None,

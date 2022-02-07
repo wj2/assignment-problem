@@ -30,7 +30,6 @@ def _compute_assignment_distortion(n_feats, overlaps, num_regions):
         overlap = overlaps[j]
         left_out[i, j] = nf - max(_split_integer(nf + overlap, num_regions))
     left_out[left_out <= 0] = 0
-    print(left_out)
     ws = left_out/6
     # ws[ws <= 0] = 0
     ws = np.expand_dims(ws, 0)
@@ -43,14 +42,27 @@ def weighted_tradeoff(distorts, ae_rates, n_features, overlaps, overlap_dim=2,
               for nr in distorts.keys()}
     w_arr = {nr:distorts[nr] + weight[nr]*ae_rates[nr] for nr in distorts.keys()}
     w_arr[1] = np.mean(w_arr[1], axis=overlap_dim, keepdims=True)
-    diff_mat = w_arr[1] - w_arr[2]
-    print(diff_mat.shape)
-    opt_overlap = np.argmin(w_arr[2], axis=2).astype(float)
-    opt_overlap = np.argmax(diff_mat, axis=2).astype(float)
-    print(diff_mat[:, 0, :, 0].shape)
-    print(diff_mat[:, 0, :, 0])
-    opt_overlap[np.all(diff_mat <= 0, axis=overlap_dim)] = np.nan
-    return w_arr, opt_overlap
+    diff_mat2 = w_arr[1] - w_arr[2]
+    diff_mat3 = w_arr[1] - w_arr[3]
+    opt_overlap2 = np.argmin(w_arr[2], axis=2).astype(float)
+    opt_overlap3 = np.argmin(w_arr[3], axis=2).astype(float)
+    opt_overlap2 = np.argmax(diff_mat2, axis=2).astype(float)
+    opt_overlap3 = np.argmax(diff_mat3, axis=2).astype(float)
+    opt_overlap2[np.all(diff_mat2 <= 0, axis=overlap_dim)] = np.nan
+    opt_overlap3[np.all(diff_mat3 <= 0, axis=overlap_dim)] = np.nan
+    return w_arr, opt_overlap2, opt_overlap3
+
+
+def max_fi_per_feature(pwr_per_feature, n_units_per_feature, dims, **kwargs):
+    fi_out = np.zeros((len(dims), len(n_units_per_feature)))
+    for i, dim in enumerate(dims):
+        pwr_i = dim*pwr_per_feature
+        n_units_i = n_units_per_feature*dim
+        for j, n_units_ij in enumerate(n_units_i):
+            out = rfm.max_fi_power(pwr_i, n_units_ij, dim, ret_min_max=True,
+                                   **kwargs)
+            fi_out[i, j] = out[0][0, 0]
+    return fi_out
 
 @u.arg_list_decorator
 def explore_fi_tradeoff(n_units, total_dims, overlaps, total_pwrs,
@@ -100,29 +112,33 @@ def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
     distorts = {}
     ae_rates = {}
     for nr in n_regions:
-        dims_to_rep = total_dims + overlap*(nr > 1)
+        dims_to_rep = total_dims + overlap*(nr - 1)
         dims_per_region = _split_integer(dims_to_rep, nr)
-        distorts[nr] = np.zeros(nr)
-        for i, dpr_i in enumerate(dims_per_region):
-            ri_pwr = total_pwr*dpr_i/dims_to_rep
-            ri_units = int(np.round(total_units*dpr_i/dims_to_rep))
-            if use_theory:
-                out = rfm.max_fi_power(ri_pwr, ri_units, dpr_i,
-                                       ret_min_max=ret_min_max,
-                                       lambda_deviation=lambda_deviation,
-                                       opt_kind=opt_kind, **kwargs)
-                fi, fi_var, pwr, w, scale = out
-                distorts[nr][i] = 1/fi[0, 0]
-            else:
-                distorts[nr][i] = rf_distortion(ri_units, dpr_i,
-                                                scale=ri_pwr,
-                                                **kwargs)
-        ae_nr = 0
-        for (j, k) in it.combinations(range(nr), 2):
-            ae_risk = integrate_assignment_error((n_stim,), distorts[nr][j:j+1],
-                                                 distorts[nr][k:k+1], overlap, p=1)
-            ae_nr = ae_nr + ae_risk
-        ae_rates[nr] = ae_nr
+        if np.all(np.array(dims_per_region) > overlap):
+            distorts[nr] = np.zeros(nr)
+            for i, dpr_i in enumerate(dims_per_region):
+                ri_pwr = total_pwr*dpr_i/dims_to_rep
+                ri_units = int(np.round(total_units*dpr_i/dims_to_rep))
+                if use_theory:
+                    out = rfm.max_fi_power(ri_pwr, ri_units, dpr_i,
+                                           ret_min_max=ret_min_max,
+                                           lambda_deviation=lambda_deviation,
+                                           opt_kind=opt_kind, **kwargs)
+                    fi, fi_var, pwr, w, scale = out
+                    distorts[nr][i] = 1/fi[0, 0]
+                else:
+                    distorts[nr][i] = rf_distortion(ri_units, dpr_i,
+                                                    scale=ri_pwr,
+                                                    **kwargs)
+            ae_nr = 0
+            for (j, k) in it.combinations(range(nr), 2):
+                ae_risk = integrate_assignment_error((n_stim,), distorts[nr][j:j+1],
+                                                     distorts[nr][k:k+1], overlap, p=1)
+                ae_nr = ae_nr + ae_risk
+            ae_rates[nr] = ae_nr
+        else:
+            distorts[nr] = np.zeros(nr)*np.nan
+            ae_rates[nr] = np.nan
     return distorts, ae_rates
 
 def get_fi_mat(s_d, inv_cov, identity=True):
@@ -140,10 +156,10 @@ def get_fi_mat(s_d, inv_cov, identity=True):
             fi_mat[:, j, i] = fi_mat[:, i, j]
     mfi_mat = np.mean(fi_mat, axis=0)
     sfi_mat = np.var(fi_mat, axis=0)
-    print('m2 emp', np.mean(fi_mat[:, 0, 0]**2, axis=0))
-    print('m  emp', np.mean(fi_mat[:, 0, 0], axis=0)**2)
-    print('v  emp', np.mean(fi_mat[:, 0, 0]**2, axis=0) -
-          np.mean(fi_mat[:, 0, 0], axis=0)**2)
+    # print('m2 emp', np.mean(fi_mat[:, 0, 0]**2, axis=0))
+    # print('m  emp', np.mean(fi_mat[:, 0, 0], axis=0)**2)
+    # print('v  emp', np.mean(fi_mat[:, 0, 0]**2, axis=0) -
+    #       np.mean(fi_mat[:, 0, 0], axis=0)**2)
     # inv_mfi_mat = np.linalg.inv(mfi_mat)
     return mfi_mat, sfi_mat
 
@@ -186,6 +202,19 @@ def rf_distortion(n_units, n_dims, input_distr_type='uniform',
     pwr = np.mean(get_rad(rf(samps)))
     distortion = np.mean(inv_fi[np.identity(n_dims, dtype=bool)])
     return fi[0, 0], pwr, distortion
+
+def compute_fi(ms, ws, scale, stim_distr, baseline=0, n_samps=10000,
+               **kwargs):
+    rf, drf = rfm.make_gaussian_vector_rf(ms, ws, scale, baseline,
+                                          titrate_pwr=stim_distr)
+    samps = stim_distr.rvs(n_samps)
+    s_d = drf(samps)
+    inv_cov = np.identity(ms.shape[0])
+    fi, inv_fi = get_fi_mat(s_d, inv_cov)
+    pwr = np.mean(get_rad(rf(samps)))
+    distortion = np.mean(inv_fi[np.identity(ms.shape[1], dtype=bool)])
+    return fi[0, 0], pwr, distortion
+
 
 def fixed_distance_errors(d, dx, dy, n_ests=1000, p=100, c=1, boot=False):
     err = np.zeros(n_ests)

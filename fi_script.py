@@ -6,8 +6,8 @@ import pickle
 
 if __name__ == '__main__':
     n_features = (4, 5, 6, 7, 8, 9, 10, 12)
-    total_units = np.logspace(3, 6, 15, dtype=int)
-    total_pwrs = np.logspace(1, 4, 15)
+    total_units = np.logspace(3, 6, 50, dtype=int)
+    total_pwrs = np.logspace(1, 4, 50)
     overlaps = (1, 2, 3, 4, 5)
     opt_kind = 'brute'
 

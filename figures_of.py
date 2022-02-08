@@ -542,7 +542,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         ax_vals, (mse_dist, ae_rate) = data['de']
         n_feats, total_units, total_pwrs, overlaps = ax_vals
         pwr_ind = 5
-        feat_ind = 0
+        feat_ind = 4
         var = 1/6
         use_regions = 2
         td_thresh = .01
@@ -568,17 +568,18 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                     col = l[0].get_color()
                     td_i = (spec_mse[:, feat_ind, i, pwr_ind]
                             + spec_ae_dist[:, feat_ind, i, pwr_ind])
-                    td_pt = total_units[td_i < td_thresh][0]
+                    td_mask = td_i < td_thresh
+                    if np.any(td_mask):
+                        td_pt = total_units[td_mask][0]
+                    else:
+                        td_pt = np.nan
                     iso_inset_ax.plot([ov], [td_pt], 'o', color=col)
-                
+
                 td_map = (spec_mse[:, feat_ind, i, :]
                           + spec_ae_dist[:, feat_ind, i, :])
                 td_maps.append(td_map)
             full_map_k = np.stack(td_maps, axis=0)
             min_map_k = np.min(full_map_k, axis=0)
-            print('k', k)
-            print(np.array(overlaps)[np.argmin(full_map_k, axis=0)])
-            print(np.array(rep_feats)[np.argmin(full_map_k, axis=0)])
             min_maps.append(min_map_k)
             region_list.append(k)
         min_regions = np.stack(min_maps, axis=0)

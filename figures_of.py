@@ -541,6 +541,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     if 'de' in gen_panels:
         ax_vals, (mse_dist, ae_rate) = data['de']
         n_feats, total_units, total_pwrs, overlaps = ax_vals
+        # indices are (units, feats, overlaps, pwrs)
         pwr_ind = 5
         feat_ind = 4
         var = 1/6
@@ -588,8 +589,10 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         gpl.pcolormesh(total_units, total_pwrs, plot_map, ax=map_ax)
         map_ax.set_xscale('log')
         map_ax.set_yscale('log')
-        print(plot_map)
-            
+        map_ax.set_xlabel('total units')
+        map_ax.set_ylabel('total power')
+        map_ax.set_title('K = {}'.format(n_feats[feat_ind]))
+        
         # iso_ax.set_aspect('equal')
         rads = [.01, .02]
         labels = ['constant\ntotal distortion', '']

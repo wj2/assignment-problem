@@ -97,6 +97,7 @@ def explore_fi_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
                                **kwargs)
         return ind, ds, aers
 
+    args = (n_units, total_dims, overlaps, total_pwrs)
     ind_iter = u.make_array_ind_iterator(arr_shape)
     par = jl.Parallel(n_jobs=n_jobs)
     out = par(jl.delayed(_fi_tradeoff_helper)(ind) for ind in ind_iter)
@@ -104,7 +105,7 @@ def explore_fi_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
         for k, d_k in ds.items():
             distorts[k][ind] = np.mean(d_k) # np.product(d_k)/np.sum(d_k)
             ae_rates[k][ind] = np.mean(aers[k])
-    return distorts, ae_rates
+    return args, distorts, ae_rates
 
 def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                 n_stim=2, total_pwr=10, use_theory=True, ret_min_max=True,

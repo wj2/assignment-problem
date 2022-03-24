@@ -73,7 +73,6 @@ def max_fi_per_feature(pwr_per_feature, n_units_per_feature, dims,
 def estimate_mse(pwrs, n_units, dims, div=2, **kwargs):
     pwrs = np.array(pwrs)
     n_units = np.array(n_units)
-    dims = np.array(dims)
     out_full, c_full = rfm.emp_rf_decoding(pwrs, n_units, dims, **kwargs)
     out_div, c_div = rfm.emp_rf_decoding(pwrs/div, int(n_units/div),
                                          int(dims/div), **kwargs)

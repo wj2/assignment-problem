@@ -53,16 +53,33 @@ def weighted_tradeoff(distorts, ae_rates, n_features, overlaps, overlap_dim=2,
     return w_arr, opt_overlap2, opt_overlap3
 
 
-def max_fi_per_feature(pwr_per_feature, n_units_per_feature, dims, **kwargs):
+def max_fi_per_feature(pwr_per_feature, n_units_per_feature, dims,
+                       ret_min_max=True, **kwargs):
     fi_out = np.zeros((len(dims), len(n_units_per_feature)))
+    w_opt_out = np.zeros_like(fi_out)
+    pwr_out = np.zeros_like(fi_out)
     for i, dim in enumerate(dims):
         pwr_i = dim*pwr_per_feature
         n_units_i = n_units_per_feature*dim
         for j, n_units_ij in enumerate(n_units_i):
-            out = rfm.max_fi_power(pwr_i, n_units_ij, dim, ret_min_max=True,
+            out = rfm.max_fi_power(pwr_i, n_units_ij, dim,
+                                   ret_min_max=ret_min_max,
                                    **kwargs)
             fi_out[i, j] = out[0][0, 0]
-    return fi_out
+            w_opt_out[i, j] = out[3]
+            pwr_out[i, j] = out[2]
+    return fi_out, w_opt_out, pwr_out
+
+def estimate_mse(pwrs, n_units, dims, div=2, **kwargs):
+    pwrs = np.array(pwrs)
+    n_units = np.array(n_units)
+    dims = np.array(dims)
+    out_full, c_full = rfm.emp_rf_decoding(pwrs, n_units, dims, **kwargs)
+    out_div, c_div = rfm.emp_rf_decoding(pwrs/div, int(n_units/div),
+                                         int(dims/div), **kwargs)
+    ret_dict = {0:(out_full, c_full),
+                div:(out_div, c_div)}
+    return ret_dict
 
 @u.arg_list_decorator
 def explore_fi_tradeoff(n_units, total_dims, overlaps, total_pwrs,
@@ -80,7 +97,6 @@ def explore_fi_tradeoff(n_units, total_dims, overlaps, total_pwrs,
             distorts[k][ind] = np.mean(d_k)
             ae_rates[k][ind] = np.mean(aers[k])
     return distorts, ae_rates
-
 
 @u.arg_list_decorator
 def explore_fi_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,

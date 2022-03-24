@@ -3,6 +3,7 @@ import assignment.overlapping_features as am
 import assignment.data_analysis as da
 import general.plotting as gpl
 import general.plotting_styles as gps
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gs
 import numpy as np
@@ -13,6 +14,7 @@ import os
 import assignment.ff_integration as ff
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
+
 import general.rf_models as rfm
 
 from assignment.figure_helpers import *
@@ -469,7 +471,8 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
 
     iso_grid = gs[40:, :33]
     iso_inset_grid = gs[42:70, 20:33]
-    map_grid = gs[40:, 50:]
+    map_grid = gs[40:, 50:90]
+    map_cb_grid = gs[60:80, 95:]
 
     if data.get('a') is None and 'a' in gen_panels:
         rf_distrs = (sts.uniform(0, 1),)*2
@@ -524,31 +527,30 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
             gpl.plot_trace_werr(n_units, ae_theor[i], ax=ae_nu_ax, log_x=True,
                                 log_y=True)
 
-    data_path = 'assignment/many_tradeoffs_brute_nr3.pkl'
+    data_path = 'assignment/many_tradeoffs-nr3.pkl'
     if data.get('de') is None and 'de' in gen_panels:
         out = pickle.load(open(data_path, 'rb'))
-        
-        n_features = (4, 5, 6, 7, 8, 9, 10, 12)
-        total_units = np.logspace(3, 6, 15, dtype=int)
-        total_pwrs = np.logspace(1, 4, 15)
-        overlaps = (1, 2, 3, 4, 5)
-        ax_vals = (n_features, total_units, total_pwrs, overlaps)
-        data['de'] = (ax_vals, out)
+        data['de'] = out
 
     iso_ax = f.add_subplot(iso_grid)
     iso_inset_ax = f.add_subplot(iso_inset_grid)
     map_ax = f.add_subplot(map_grid)
+    map_cb_ax = f.add_subplot(map_cb_grid)
     if 'de' in gen_panels:
-        ax_vals, (mse_dist, ae_rate) = data['de']
-        n_feats, total_units, total_pwrs, overlaps = ax_vals
+        ax_vals, mse_dist, ae_rate = data['de']
+        total_units, n_feats, overlaps, total_pwrs = ax_vals
         # indices are (units, feats, overlaps, pwrs)
-        pwr_ind = 5
-        feat_ind = 4
+        print(len(total_pwrs))
+        pwr_ind = 40
+        feat_ind = 2
+        print(n_feats[feat_ind])
         var = 1/6
-        use_regions = 2
+        use_regions = (1, 2)
         td_thresh = .01
         region_list = []
         min_maps = []
+
+        linestyles = ('dashed', 'solid')
         
         for k, mse_r in mse_dist.items():            
             ae_r = ae_rate[k]
@@ -556,16 +558,21 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
             rep_feats = []
             for i, ov in enumerate(overlaps):
                 total_rep_feats = n_feats[feat_ind] + (k - 1)*ov
-                smaller_feat = min(am._split_integer(total_rep_feats, k))
+                region_feats = am._split_integer(total_rep_feats, k)
+                print(region_feats)
+                smaller_feat = min(region_feats)
                 rep_feats.append(smaller_feat)
-                ae_distortion = 2*smaller_feat*var
-                spec_mse = 2*mse_r*(1 - ae_r)
-                spec_ae_dist = ae_r*ae_distortion
-                if k == use_regions:
+                mse_i = 2*mse_r*n_feats[feat_ind]
+                ae_distortion = (2*smaller_feat*var
+                                 + mse_i)
+                spec_mse = mse_i*(1 - ae_r)
+                spec_ae_dist = ae_distortion*ae_r
+                if k in use_regions:
+                    ls = linestyles[use_regions.index(k)]
                     l = gpl.plot_trace_werr(spec_mse[:, feat_ind, i, pwr_ind],
                                             spec_ae_dist[:, feat_ind, i, pwr_ind],
-                                            ax=iso_ax, label='C = {}'.format(ov),
-                                            points=True, markersize=3)
+                                            ax=iso_ax, label='', # 'C = {}'.format(ov),
+                                            points=False, markersize=3, ls=ls)
                     col = l[0].get_color()
                     td_i = (spec_mse[:, feat_ind, i, pwr_ind]
                             + spec_ae_dist[:, feat_ind, i, pwr_ind])
@@ -586,7 +593,24 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         min_regions = np.stack(min_maps, axis=0)
         num_regions = np.argmin(min_regions, axis=0)
         plot_map = np.array(region_list)[num_regions]
-        gpl.pcolormesh(total_units, total_pwrs, plot_map, ax=map_ax)
+        cmap_name = None
+        cmap = plt.get_cmap(cmap_name)
+        cm = gpl.pcolormesh(total_units, total_pwrs, plot_map, ax=map_ax,
+                            cmap=cmap)
+        possibles = np.unique(plot_map)
+        if len(possibles) > 1:
+            delta = np.diff(possibles)[0]
+            bounds = np.concatenate((possibles - delta/2,
+                                     [possibles[-1] + delta/2]))
+        else:
+            bounds = (possibles[0] - .5, possibles[0] + .5)
+        colors = cmap(possibles/np.max(possibles))
+        mappable = mpl.cm.ScalarMappable(cmap=mpl.colors.ListedColormap(colors))
+        f.colorbar(mappable, cax=map_cb_ax,
+                   boundaries=bounds, ticks=possibles,
+                   label='number of regions')
+        
+        
         map_ax.set_xscale('log')
         map_ax.set_yscale('log')
         map_ax.set_xlabel('total units')
@@ -594,15 +618,16 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         map_ax.set_title('K = {}'.format(n_feats[feat_ind]))
         
         # iso_ax.set_aspect('equal')
+        iso_ax.set_xscale('log')
         rads = [.01, .02]
         labels = ['constant\ntotal distortion', '']
         for i, rad in enumerate(rads):
             pts = np.linspace(0, np.pi/2, 100)
             y = rad*np.sin(pts)
             x = rad*np.cos(pts)
-            iso_ax.plot(x, y, linestyle='dashed', color='k',
-                        label=labels[i])
-        iso_ax.legend(frameon=False)
+            # iso_ax.plot(x, y, linestyle='dashed', color='k',
+            #             label=labels[i])
+        # iso_ax.legend(frameon=False)
         iso_ax.set_xlabel('local MSE')
         iso_ax.set_ylabel('assignment MSE')
 

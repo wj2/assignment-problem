@@ -12,6 +12,7 @@ if __name__ == '__main__':
     opt_kind = 'brute'
 
     out = am.explore_fi_tradeoff_parallel(total_units, n_features, overlaps,
-                                          total_pwrs, opt_kind=opt_kind)
-    savename = 'many_tradeoffs.pkl'
+                                          total_pwrs, opt_kind=opt_kind,
+                                          n_regions=(1, 2, 3))
+    savename = 'many_tradeoffs-nr3.pkl'
     pickle.dump(out, open(os.path.join('assignment/', savename), 'wb'))

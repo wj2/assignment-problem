@@ -17,5 +17,6 @@ if __name__ == '__main__':
     out_file = 'multi_splits.pkl'
     out_dict = am.estimate_mse(pwrs, n_units, dims, div,
                                **common_kwargs)
+    out_dict['params'] = (pwrs, n_units, dims, div)
     p.dump(out_dict, open(out_file, 'wb'))
     

@@ -54,7 +54,7 @@ def weighted_tradeoff(distorts, ae_rates, n_features, overlaps, overlap_dim=2,
 
 
 def max_fi_per_feature(pwr_per_feature, n_units_per_feature, dims,
-                       ret_min_max=True, **kwargs):
+                       ret_min_max=True, use_w=None, **kwargs):
     fi_out = np.zeros((len(dims), len(n_units_per_feature)))
     w_opt_out = np.zeros_like(fi_out)
     pwr_out = np.zeros_like(fi_out)
@@ -62,21 +62,48 @@ def max_fi_per_feature(pwr_per_feature, n_units_per_feature, dims,
         pwr_i = dim*pwr_per_feature
         n_units_i = n_units_per_feature*dim
         for j, n_units_ij in enumerate(n_units_i):
+            if use_w is not None:
+                use_w_ij = use_w[i, j]
+            else:
+                use_w_ij = None
             out = rfm.max_fi_power(pwr_i, n_units_ij, dim,
                                    ret_min_max=ret_min_max,
-                                   **kwargs)
-            fi_out[i, j] = out[0][0, 0]
+                                   use_w=use_w_ij, **kwargs)
+            fi_out[i, j] = out[0]
             w_opt_out[i, j] = out[3]
             pwr_out[i, j] = out[2]
     return fi_out, w_opt_out, pwr_out
+
+def post_estimated_mse(est_arr, conf_dict, pwr=None, n_units=None,
+                       dim=None):
+    new_arr = np.zeros(est_arr.shape + est_arr[0, 0, 0, 0].shape)
+    mse_fi_arr = np.zeros(est_arr.shape)
+    
+    for ind in u.make_array_ind_iterator(est_arr.shape):
+        new_arr[ind] = est_arr[ind]
+        mse_fi_arr[ind] = 1/conf_dict[ind[:2]][0][0, 0]
+        if pwr is not None and n_units is not None:
+            pwr_i = pwr[ind[0]]
+            n_i = n_units[ind[1]]
+            w_use = conf_dict[ind[:2]][1]
+            resp_use = conf_dict[ind[:2]][2]
+            prob, mag = rfm.compute_threshold_err_prob(pwr_i, n_i, dim, w_use,
+                                                       resp_scale=resp_use)
+            mse_fi_arr[ind] = (1 - prob)*mse_fi_arr[ind] + prob*mag
+    return new_arr, mse_fi_arr
 
 def estimate_mse(pwrs, n_units, dims, div=2, **kwargs):
     pwrs = np.array(pwrs)
     n_units = np.array(n_units).astype(int)
     out_full, c_full = rfm.emp_rf_decoding(pwrs, n_units, dims, **kwargs)
     out_div, c_div = rfm.emp_rf_decoding(pwrs/div, (n_units/div).astype(int),
+<<<<<<< HEAD
                                          dims/div, **kwargs)
     ret_dict = {0:(out_full, c_full),
+=======
+                                         (dims/div).astype(int), **kwargs)
+    ret_dict = {1:(out_full, c_full),
+>>>>>>> da731f1c1ae46c00b523b5d52245fd65c6b77329
                 div:(out_div, c_div)}
     return ret_dict
 

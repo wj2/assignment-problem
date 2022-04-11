@@ -97,13 +97,8 @@ def estimate_mse(pwrs, n_units, dims, div=2, **kwargs):
     n_units = np.array(n_units).astype(int)
     out_full, c_full = rfm.emp_rf_decoding(pwrs, n_units, dims, **kwargs)
     out_div, c_div = rfm.emp_rf_decoding(pwrs/div, (n_units/div).astype(int),
-<<<<<<< HEAD
                                          dims/div, **kwargs)
     ret_dict = {0:(out_full, c_full),
-=======
-                                         (dims/div).astype(int), **kwargs)
-    ret_dict = {1:(out_full, c_full),
->>>>>>> da731f1c1ae46c00b523b5d52245fd65c6b77329
                 div:(out_div, c_div)}
     return ret_dict
 

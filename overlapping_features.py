@@ -163,7 +163,7 @@ def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                                            lambda_deviation=lambda_deviation,
                                            opt_kind=opt_kind, **kwargs)
                     fi, fi_var, pwr, w, scale = out
-                    distorts[nr][i] = 1/fi[0, 0]
+                    distorts[nr][i] = fi
                 else:
                     distorts[nr][i] = rf_distortion(ri_units, dpr_i,
                                                     scale=ri_pwr,

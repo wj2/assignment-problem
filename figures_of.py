@@ -540,10 +540,9 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         ax_vals, mse_dist, ae_rate = data['de']
         total_units, n_feats, overlaps, total_pwrs = ax_vals
         # indices are (units, feats, overlaps, pwrs)
-        print(len(total_pwrs))
         pwr_ind = 40
-        feat_ind = 2
-        print(n_feats[feat_ind])
+        feat_ind = 4
+        print('nf', n_feats[feat_ind])
         var = 1/6
         use_regions = (1, 2)
         td_thresh = .01

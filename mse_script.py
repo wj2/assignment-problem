@@ -10,8 +10,9 @@ if __name__ == '__main__':
     total_pwrs = np.logspace(1, 5, 50)
     overlaps = (1, 2, 3, 4, 5)
 
+    n_regions = (1, 2, 3)
+
     out = am.explore_mse_tradeoff_parallel(total_units, n_features, overlaps,
-                                           total_pwrs, opt_kind=opt_kind,
-                                           n_regions=(1, 2, 3))
+                                           total_pwrs, n_regions=n_regions)
     savename = 'many_mse_tradeoffs-nr3.pkl'
     pickle.dump(out, open(os.path.join('assignment/', savename), 'wb'))

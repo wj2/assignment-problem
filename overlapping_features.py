@@ -120,6 +120,39 @@ def explore_fi_tradeoff(n_units, total_dims, overlaps, total_pwrs,
     return distorts, ae_rates
 
 @u.arg_list_decorator
+def explore_mse_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
+                                  n_regions=(1, 2), n_jobs=-1, **kwargs):
+    arr_shape = (len(n_units), len(total_dims), len(overlaps),
+                 len(total_pwrs))
+    totals = {nr:np.zeros(arr_shape) for nr in n_regions}
+    distorts = {nr:np.zeros(arr_shape) for nr in n_regions}
+    ae_rates = {nr:np.zeros_like(distorts[nr]) for nr in n_regions}
+    mis_prob = {nr:np.zeros(arr_shape, dtype=object) for nr in n_regions}
+    mis_err = {nr:np.zeros(arr_shape, dtype=object) for nr in n_regions}
+
+    def _mse_tradeoff_helper(ind):
+        i, j, k, l = ind
+        out = mse_tradeoff(n_units[i], total_dims[j], n_regions=n_regions,
+                           overlap=overlaps[k], total_pwr=total_pwrs[l],
+                           **kwargs)
+        total, ds, aers, mp, me = out
+        return ind, total, ds, aers, mp, me
+
+    args = (n_units, total_dims, overlaps, total_pwrs)
+    ind_iter = u.make_array_ind_iterator(arr_shape)
+    par = jl.Parallel(n_jobs=n_jobs)
+    out = par(jl.delayed(_mse_tradeoff_helper)(ind) for ind in ind_iter)
+    for ind, total, ds, aers, mp, me in out:
+        for k, d_k in ds.items():
+            totals[k][ind] = total[k]
+            distorts[k][ind] = np.mean(d_k) # np.product(d_k)/np.sum(d_k)
+            ae_rates[k][ind] = np.mean(aers[k])
+            mis_prob[k][ind] = mp[k]
+            mis_err[k][ind] = me[k]
+            
+    return args, totals, distorts, ae_rates, mis_prob, mis_err
+
+@u.arg_list_decorator
 def explore_fi_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
                                  n_regions=(1, 2), n_jobs=-1, **kwargs):
     arr_shape = (len(n_units), len(total_dims), len(overlaps),
@@ -143,6 +176,66 @@ def explore_fi_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
             distorts[k][ind] = np.mean(d_k) # np.product(d_k)/np.sum(d_k)
             ae_rates[k][ind] = np.mean(aers[k])
     return args, distorts, ae_rates
+
+def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
+                 n_stim=2, total_pwr=10, ret_min_max=True, lambda_deviation=2,
+                 **kwargs):
+    distorts = {}
+    ae_rates = {}
+    mis_prob = {}
+    mis_err = {}
+    total_err = {}
+    for nr in n_regions:
+        dims_to_rep = total_dims + overlap*(nr - 1)
+        dims_per_region = _split_integer(dims_to_rep, nr)
+        if np.all(np.array(dims_per_region) > overlap):
+            distorts[nr] = np.zeros(nr)
+            mis_err[nr] = np.zeros(nr)
+            mis_prob[nr] = np.zeros(nr)
+            for i, dpr_i in enumerate(dims_per_region):
+                ri_pwr = total_pwr*dpr_i/dims_to_rep
+                ri_units = int(np.round(total_units*dpr_i/dims_to_rep))
+                
+                out = rfm.min_mse_power(ri_pwr, ri_units, dpr_i,
+                                        local_min_max=ret_min_max,
+                                        lambda_deviation=lambda_deviation,
+                                        **kwargs)
+                l_mse, nl_mse, nl_prob = out
+                distorts[nr][i] = l_mse*dpr_i
+                mis_prob[nr][i] = nl_prob
+                mis_err[nr][i] = nl_mse*dpr_i
+            ae_nr = np.zeros((nr, nr))
+            for (j, k) in it.combinations(range(nr), 2):
+                ae_risk = integrate_assignment_error((n_stim,), distorts[nr][j:j+1],
+                                                     distorts[nr][k:k+1], overlap, p=1)
+                ae_nr[j, k] = ae_risk
+                ae_nr[k, j] = ae_risk
+            ae_rates[nr] = ae_nr            
+        else:
+            distorts[nr] = np.zeros(nr)*np.nan
+            ae_rates[nr] = np.nan
+            mis_prob[nr] = np.zeros(nr)*np.nan
+            mis_err[nr] = np.zeros(nr)*np.nan
+
+        total_err[nr] = calc_te(distorts[nr], ae_rates[nr], mis_prob[nr],
+                                mis_err[nr], nr, n_stim=n_stim)            
+    return total_err, distorts, ae_rates, mis_prob, mis_err
+
+
+def calc_te(d_l, p_ae, p_nl, d_nl, n_regions, n_stim=2):
+    # local errors only
+    p_local = np.product((1 - p_nl)**n_stim)
+
+    if n_regions > 1:
+        ae_risk = 0
+        for (j, k) in it.combinations(range(n_regions), 2):
+            ae_risk_jk = (p_ae[j, k]*(d_nl[j] + d_nl[k])
+                          + (1 - p_ae[j, k])*(d_l[j] + d_l[k]))
+            ae_risk = ae_risk + ae_risk_jk
+    else:
+        ae_risk = d_l[0]
+    te = p_local*ae_risk + (1 - p_local)*np.mean(d_nl)
+    return te    
 
 def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                 n_stim=2, total_pwr=10, use_theory=True, ret_min_max=True,

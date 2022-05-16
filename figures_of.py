@@ -527,7 +527,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
             gpl.plot_trace_werr(n_units, ae_theor[i], ax=ae_nu_ax, log_x=True,
                                 log_y=True)
 
-    data_path = 'assignment/many_tradeoffs-nr3.pkl'
+    data_path = 'assignment/many_mse_tradeoffs-nr3.pkl'
     if data.get('de') is None and 'de' in gen_panels:
         out = pickle.load(open(data_path, 'rb'))
         data['de'] = out
@@ -537,11 +537,11 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     map_ax = f.add_subplot(map_grid)
     map_cb_ax = f.add_subplot(map_cb_grid)
     if 'de' in gen_panels:
-        ax_vals, mse_dist, ae_rate = data['de']
+        ax_vals, total_mse, mse_dist, ae_rate = data['de'][:4]
         total_units, n_feats, overlaps, total_pwrs = ax_vals
         # indices are (units, feats, overlaps, pwrs)
         pwr_ind = 40
-        feat_ind = 4
+        feat_ind = 3
         print('nf', n_feats[feat_ind])
         var = 1/6
         use_regions = (1, 2)
@@ -582,8 +582,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                         td_pt = np.nan
                     iso_inset_ax.plot([ov], [td_pt], 'o', color=col)
 
-                td_map = (spec_mse[:, feat_ind, i, :]
-                          + spec_ae_dist[:, feat_ind, i, :])
+                td_map = total_mse[k][:, feat_ind, i, :]
                 td_maps.append(td_map)
             full_map_k = np.stack(td_maps, axis=0)
             min_map_k = np.min(full_map_k, axis=0)
@@ -594,7 +593,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         plot_map = np.array(region_list)[num_regions]
         cmap_name = None
         cmap = plt.get_cmap(cmap_name)
-        cm = gpl.pcolormesh(total_units, total_pwrs, plot_map, ax=map_ax,
+        cm = gpl.pcolormesh(total_pwrs, total_units, plot_map, ax=map_ax,
                             cmap=cmap)
         possibles = np.unique(plot_map)
         if len(possibles) > 1:
@@ -612,8 +611,8 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         
         map_ax.set_xscale('log')
         map_ax.set_yscale('log')
-        map_ax.set_xlabel('total units')
-        map_ax.set_ylabel('total power')
+        map_ax.set_xlabel('total power')
+        map_ax.set_ylabel('total units')
         map_ax.set_title('K = {}'.format(n_feats[feat_ind]))
         
         # iso_ax.set_aspect('equal')

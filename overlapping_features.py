@@ -181,6 +181,7 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                  n_stim=2, total_pwr=10, ret_min_max=True, lambda_deviation=2,
                  **kwargs):
     distorts = {}
+    ae_distorts = {}
     ae_rates = {}
     mis_prob = {}
     mis_err = {}
@@ -190,6 +191,7 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
         dims_per_region = _split_integer(dims_to_rep, nr)
         if np.all(np.array(dims_per_region) > overlap):
             distorts[nr] = np.zeros(nr)
+            ae_distorts[nr] = np.zeros(nr)
             mis_err[nr] = np.zeros(nr)
             mis_prob[nr] = np.zeros(nr)
             for i, dpr_i in enumerate(dims_per_region):
@@ -202,12 +204,14 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                                         **kwargs)
                 l_mse, nl_mse, nl_prob = out
                 distorts[nr][i] = l_mse*dpr_i
+                ae_distorts[nr][i] = l_mse
                 mis_prob[nr][i] = nl_prob
                 mis_err[nr][i] = nl_mse*dpr_i
             ae_nr = np.zeros((nr, nr))
             for (j, k) in it.combinations(range(nr), 2):
-                ae_risk = integrate_assignment_error((n_stim,), distorts[nr][j:j+1],
-                                                     distorts[nr][k:k+1], overlap, p=1)
+                ae_risk = integrate_assignment_error(
+                    (n_stim,), ae_distorts[nr][j:j+1], ae_distorts[nr][k:k+1],
+                    overlap, p=1)
                 ae_nr[j, k] = ae_risk
                 ae_nr[k, j] = ae_risk
             ae_rates[nr] = ae_nr            

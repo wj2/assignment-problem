@@ -213,7 +213,7 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
             ae_rates[nr] = ae_nr            
         else:
             distorts[nr] = np.zeros(nr)*np.nan
-            ae_rates[nr] = np.nan
+            ae_rates[nr] = np.zeros((nr, nr))*np.nan
             mis_prob[nr] = np.zeros(nr)*np.nan
             mis_err[nr] = np.zeros(nr)*np.nan
 

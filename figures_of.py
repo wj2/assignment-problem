@@ -19,7 +19,7 @@ import general.rf_models as rfm
 
 from assignment.figure_helpers import *
 
-bf = ('/Users/wjj/Dropbox/research/uc/freedman/analysis/'
+bf = ('/Users/wjj/Dropbox/research/analysis/'
       'assignment/figs/')
 colors = gps.nms_colors
 n_colors = gps.assignment_num_colors
@@ -436,22 +436,29 @@ def figure5(basefolder=bf, gen_panels=None, data=None):
     f.savefig(fname, bbox_inches='tight', transparent=True)
     return data
 
-def _plot_rfs(rf_cents, rf_wids, ax, scale=(0, 1), thin=5, color=None,
-              plot_dots=False, make_scales=True):
+def _plot_rfs(rf_cents, rf_wids, ax, scale=(0, 1), thin=10, color=None,
+              plot_dots=False, make_scales=True, cmap='GnBu'):
     cps = u.get_circle_pts(100, 2)
-
+    if cmap is not None:
+        cmap = plt.get_cmap(cmap)
+    n_rfs = len(rf_cents[::thin])
+    col = None
     for i, rfc in enumerate(rf_cents[::thin]):
-        rfw = 10*np.sqrt(rf_wids[i])
+        if cmap is not None:
+            color = cmap(i/n_rfs)
+        rfw = np.sqrt(rf_wids[i])
         l = ax.plot(cps[:, 0]*rfw[0] + rfc[0],
                     cps[:, 1]*rfw[1] + rfc[1],
                     color=color,
                     linewidth=1)
+        color = l[0].get_color()
         if plot_dots:
             ax.plot(rfc[0], rfc[1], 'o',
                     color=l[0].get_color())
     if make_scales:
         gpl.make_xaxis_scale_bar(ax, 1, label='dimension 1', double=False)
-        gpl.make_yaxis_scale_bar(ax, 1, label='dimension 2', double=False)
+        gpl.make_yaxis_scale_bar(ax, 1, label='dimension 2', double=False,
+                                 text_buff=.2)
         gpl.clean_plot(ax, 0)
 
 def figure_fi(basefolder=bf, gen_panels=None, data=None):
@@ -461,23 +468,34 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     if data is None:
         data = {}
 
-    fsize = (5, 4)
+    fsize = (5, 5)
     f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
-    schem_grid = gs[:33, :33]
-    mse_nu_grid = gs[:33, 40:65]
-    ae_nu_grid = gs[:33, 75:]
+    schem_grid = gs[:28, :28]
 
-    iso_grid = gs[40:, :33]
-    iso_inset_grid = gs[42:70, 20:33]
-    map_grid = gs[40:, 50:90]
-    map_cb_grid = gs[60:80, 95:]
+    mse_nu_grid = gs[27:43, 40:60]
+    ae_nu_grid = gs[27:43, 80:]
+
+    mse_pwr_grid = gs[:16, 40:60]
+    ae_pwr_grid = gs[:16, 80:]
+
+    iso_grid = gs[44:69, :33]
+    iso_neurs_grid = gs[85:, 0:8]
+    iso_pwr_grid = gs[85:, 25:33]
+    
+    map_grid = gs[60:, 50:90]
+    map_cb_grid = gs[70:90, 95:]
 
     if data.get('a') is None and 'a' in gen_panels:
         rf_distrs = (sts.uniform(0, 1),)*2
         n_units = 1000
-        rf_cents, rf_wids = rfm.get_random_uniform_fill(n_units, rf_distrs)
+        n_feats = 2
+        pwr = 20
+        fi, fi_var, _, w, _ = rfm.max_fi_power(pwr, n_units, n_feats)
+                
+        rf_cents, rf_wids = rfm.get_random_uniform_fill(n_units, rf_distrs,
+                                                        wid=w)
         data['a'] = (rf_cents, rf_wids)
 
     schem_ax = f.add_subplot(schem_grid)
@@ -486,46 +504,97 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         _plot_rfs(rf_cents, rf_wids, schem_ax)
 
     overlaps = (1, 2)
-    n_n_units = 20
-    n_units = np.logspace(2, 3, n_n_units, dtype=int)
+    n_n_units = 50
+    n_n_pwrs = 50
+    n_units = np.logspace(2, 4, n_n_units, dtype=int)
+    n_pwr = np.logspace(1, 3, n_n_pwrs)
+    pwr_def = 10
+    n_units_def = 1000
     if data.get('bc') is None and 'bc' in gen_panels:
         total_feats = 2
-        pwr = 10
-        fi_theor = np.zeros((len(overlaps), len(n_units)))
-        fi_emp = np.zeros_like(fi_theor)
-        ae_theor = np.zeros_like(fi_theor)
+        fi_theor_nu = np.zeros((len(overlaps), len(n_units)))
+        fi_emp_nu = np.zeros_like(fi_theor_nu)
+        ae_theor_nu = np.zeros_like(fi_theor_nu)
+
+        fi_theor_pwr = np.zeros((len(overlaps), len(n_units)))
+        fi_emp_pwr = np.zeros_like(fi_theor_pwr)
+        ae_theor_pwr = np.zeros_like(fi_theor_pwr)
         for i, ov in enumerate(overlaps):
             n_feats = total_feats + ov
             rf_distrs = (sts.uniform(0, 1),)*n_feats
             stim_distr = u.MultivariateUniform(n_feats, (0, 1))
             for j, nu in enumerate(n_units):
-                fi, fi_var, _, w, _ = rfm.max_fi_power(pwr, nu, n_feats)
-                fi_theor[i, j] = fi[0, 0]
+                fi, fi_var, _, w, _ = rfm.max_fi_power(pwr_def, nu, n_feats)
+                fi_theor_nu[i, j] = fi[0, 0]
             
                 rf_cents, rf_wids = rfm.get_random_uniform_fill(nu, rf_distrs)
                 use_wids = np.ones_like(rf_wids)*w**2
-                fi, pwr, distortion = am.compute_fi(rf_cents, use_wids, pwr,
+                fi, pwr, distortion = am.compute_fi(rf_cents, use_wids, pwr_def,
                                                     stim_distr)
-                fi_emp[i, j] = fi
+                fi_emp_nu[i, j] = fi
 
-                r_distort = np.array([1/fi_theor[i, j]])
-                ae_theor[i, j] = am.integrate_assignment_error(
+                r_distort = np.array([1/fi_theor_nu[i, j]])
+                ae_theor_nu[i, j] = am.integrate_assignment_error(
+                    (2,), r_distort, r_distort, ov, p=1)
+            for j, pwr_j in enumerate(n_pwr):
+                fi, fi_var, _, w, _ = rfm.max_fi_power(pwr_j, n_units_def,
+                                                       n_feats)
+                fi_theor_pwr[i, j] = fi[0, 0]
+            
+                rf_cents, rf_wids = rfm.get_random_uniform_fill(n_units_def,
+                                                                rf_distrs)
+                use_wids = np.ones_like(rf_wids)*w**2
+                fi, pwr, distortion = am.compute_fi(rf_cents, use_wids, pwr_j,
+                                                    stim_distr)
+                fi_emp_pwr[i, j] = fi
+
+                r_distort = np.array([1/fi_theor_pwr[i, j]])
+                ae_theor_pwr[i, j] = am.integrate_assignment_error(
                     (2,), r_distort, r_distort, ov, p=1)
 
-        data['bc'] = (fi_emp, fi_theor, ae_theor)
+        data['bc'] = (fi_emp_nu, fi_theor_nu, ae_theor_nu,
+                      fi_emp_pwr, fi_theor_pwr, ae_theor_pwr)
 
     mse_nu_ax = f.add_subplot(mse_nu_grid)
     ae_nu_ax = f.add_subplot(ae_nu_grid)
+    mse_pwr_ax = f.add_subplot(mse_pwr_grid)
+    ae_pwr_ax = f.add_subplot(ae_pwr_grid)
     if 'bc' in gen_panels:
-        fi_emp, fi_theor, ae_theor = data['bc']
+        fi_emp, fi_theor, ae_theor = data['bc'][:3]
         for i, ov in enumerate(overlaps):
             l = gpl.plot_trace_werr(n_units, 1/fi_emp[i], ax=mse_nu_ax,
-                                    log_x=True, log_y=True)
+                                    log_x=True, log_y=False)
             gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_nu_ax, log_x=True,
-                                log_y=True, color=l[0].get_color(),
+                                log_y=False, color='k', 
+                                linestyle='dashed', ms=10)
+            gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_nu_ax, log_x=True,
+                                log_y=False, color=l[0].get_color(),
                                 linestyle='dashed')
             gpl.plot_trace_werr(n_units, ae_theor[i], ax=ae_nu_ax, log_x=True,
-                                log_y=True)
+                                log_y=False)
+        mse_nu_ax.set_xlabel('N units')
+        ae_nu_ax.set_xlabel('N units')
+        mse_nu_ax.set_ylabel('inverse FI')
+        ae_nu_ax.set_ylabel('assignment\nerror rate')
+
+        fi_emp, fi_theor, ae_theor = data['bc'][3:]
+        for i, ov in enumerate(overlaps):
+            l = gpl.plot_trace_werr(n_units, 1/fi_emp[i], ax=mse_pwr_ax,
+                                    log_x=True, log_y=False,)
+            gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_pwr_ax, log_x=True,
+                                log_y=False, color='k', 
+                                linestyle='dashed', ms=10)
+            gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_pwr_ax, log_x=True,
+                                log_y=False, color=l[0].get_color(),
+                                linestyle='dashed')
+            gpl.plot_trace_werr(n_units, ae_theor[i], ax=ae_pwr_ax, log_x=True,
+                                log_y=False)
+        mse_pwr_ax.set_xlabel('power')
+        ae_pwr_ax.set_xlabel('power')
+        mse_pwr_ax.set_yscale('log')
+        ae_pwr_ax.set_yscale('log')
+        mse_pwr_ax.set_ylabel('inverse FI')
+        ae_pwr_ax.set_ylabel('assignment\nerror rate')
 
     data_path = 'assignment/many_mse_tradeoffs-nr3.pkl'
     if data.get('de') is None and 'de' in gen_panels:
@@ -533,24 +602,28 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         data['de'] = out
 
     iso_ax = f.add_subplot(iso_grid)
-    iso_inset_ax = f.add_subplot(iso_inset_grid)
+    iso_neurs_ax = f.add_subplot(iso_neurs_grid)
+    iso_pwr_ax = f.add_subplot(iso_pwr_grid)
     map_ax = f.add_subplot(map_grid)
     map_cb_ax = f.add_subplot(map_cb_grid)
     if 'de' in gen_panels:
         ax_vals, total_mse, mse_dist, ae_rate = data['de'][:4]
         total_units, n_feats, overlaps, total_pwrs = ax_vals
         # indices are (units, feats, overlaps, pwrs)
-        pwr_ind = 40
-        feat_ind = 3
-        print('nf', n_feats[feat_ind])
+        pwr_ind = 20
+        neurs_ind = 20
+        feat_ind = 4
+        print(n_feats[feat_ind], total_pwrs[pwr_ind])
+
+        # print('nf', n_feats[feat_ind])
         var = 1/6
-        use_regions = (1, 2)
+        use_regions = (2,)
         td_thresh = .01
         region_list = []
         min_maps = []
 
-        linestyles = ('dashed', 'solid')
-        
+        linestyles = ('solid', 'solid')
+        ov_thresh = 4
         for k, mse_r in mse_dist.items():            
             ae_r = ae_rate[k]
             td_maps = []
@@ -566,12 +639,13 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                                  + mse_i)
                 spec_mse = mse_i*(1 - ae_r)
                 spec_ae_dist = ae_distortion*ae_r
-                if k in use_regions:
+                if k in use_regions and ov < ov_thresh:
                     ls = linestyles[use_regions.index(k)]
                     l = gpl.plot_trace_werr(spec_mse[:, feat_ind, i, pwr_ind],
                                             spec_ae_dist[:, feat_ind, i, pwr_ind],
-                                            ax=iso_ax, label='', # 'C = {}'.format(ov),
-                                            points=False, markersize=3, ls=ls)
+                                            ax=iso_ax, label='C = {}'.format(ov),
+                                            points=False, markersize=3, ls=ls,
+                                            log_y=True)
                     col = l[0].get_color()
                     td_i = (spec_mse[:, feat_ind, i, pwr_ind]
                             + spec_ae_dist[:, feat_ind, i, pwr_ind])
@@ -580,34 +654,48 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                         td_pt = total_units[td_mask][0]
                     else:
                         td_pt = np.nan
-                    iso_inset_ax.plot([ov], [td_pt], 'o', color=col)
+
+                    td_pwr_i = (spec_mse[neurs_ind, feat_ind, i]
+                                + spec_ae_dist[neurs_ind, feat_ind, i])
+                    td_pwr_mask = td_pwr_i < td_thresh
+                    if np.any(td_pwr_mask):
+                        td_pwr_pt = total_pwrs[td_pwr_mask][0]
+                    else:
+                        td_pwr_pt = np.nan
+                        
+                    iso_neurs_ax.plot([ov], [td_pt], 'o', color=col)
+                    iso_pwr_ax.plot([ov], [td_pwr_pt], 'o', color=col)
 
                 td_map = total_mse[k][:, feat_ind, i, :]
                 td_maps.append(td_map)
             full_map_k = np.stack(td_maps, axis=0)
-            min_map_k = np.min(full_map_k, axis=0)
+            # min_map_k = td_maps[0] # np.min(full_map_k, axis=0)
+            min_map_k = np.nanmin(full_map_k, axis=0)
             min_maps.append(min_map_k)
             region_list.append(k)
         min_regions = np.stack(min_maps, axis=0)
-        num_regions = np.argmin(min_regions, axis=0)
-        plot_map = np.array(region_list)[num_regions]
-        cmap_name = None
+        num_regions = np.nanargmin(min_regions, axis=0)
+        plot_map = np.array(region_list, dtype=float)[num_regions]
+        total_thresh = .1
+        plot_map[np.nanmin(min_regions, axis=0) > total_thresh] = np.nan
+        cmap_name = 'Blues'
         cmap = plt.get_cmap(cmap_name)
-        cm = gpl.pcolormesh(total_pwrs, total_units, plot_map, ax=map_ax,
-                            cmap=cmap)
-        possibles = np.unique(plot_map)
+        possibles = np.unique(plot_map)[:-1]
         if len(possibles) > 1:
             delta = np.diff(possibles)[0]
             bounds = np.concatenate((possibles - delta/2,
                                      [possibles[-1] + delta/2]))
         else:
             bounds = (possibles[0] - .5, possibles[0] + .5)
-        colors = cmap(possibles/np.max(possibles))
+
+        colors = cmap(possibles/np.nanmax(possibles))
         mappable = mpl.cm.ScalarMappable(cmap=mpl.colors.ListedColormap(colors))
         f.colorbar(mappable, cax=map_cb_ax,
                    boundaries=bounds, ticks=possibles,
                    label='number of regions')
-        
+        cm = gpl.pcolormesh(total_pwrs, total_units, plot_map,
+                            ax=map_ax, cmap=cmap, vmin=0, vmax=max(possibles))
+
         
         map_ax.set_xscale('log')
         map_ax.set_yscale('log')
@@ -628,17 +716,22 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         # iso_ax.legend(frameon=False)
         iso_ax.set_xlabel('local MSE')
         iso_ax.set_ylabel('assignment MSE')
+        
+        gpl.clean_plot(iso_neurs_ax, 0)
+        iso_neurs_ax.set_yscale('log')
+        iso_neurs_ax.set_xlabel('C')
+        iso_neurs_ax.set_ylabel('required units')
 
-        gpl.clean_plot(iso_inset_ax, 0)
-        iso_inset_ax.set_yscale('log')
-        iso_inset_ax.set_xlabel('C')
-        iso_inset_ax.set_ylabel('units required for\n'
-                                'total distortion < {}'.format(td_thresh))
+        gpl.clean_plot(iso_pwr_ax, 0)
+        iso_pwr_ax.set_yscale('log')
+        iso_pwr_ax.set_xlabel('C')
+        iso_pwr_ax.set_ylabel('required power')
 
 
     # plot transition map between two and three regions
     # for final piece
-    
+    fname = os.path.join(bf, 'fig_fi-py.svg')
+    f.savefig(fname, bbox_inches='tight', transparent=True)
     return data
 
 def figure6_alt(basefolder=bf, mp1=None, mp2=None, mp3=None, gen_panels=None,

@@ -205,7 +205,7 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                 #                         local_min_max=ret_min_max,
                 #                         lambda_deviation=lambda_deviation,
                 #                         **kwargs)
-                _, l_mse, nl_mse, nl_prob = out
+                _, l_mse, nl_mse, nl_prob, _ = out
                 distorts[nr][i] = l_mse*dpr_i
                 ae_distorts[nr][i] = l_mse
                 mis_prob[nr][i] = nl_prob

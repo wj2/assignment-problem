@@ -16,6 +16,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
 
 import general.rf_models as rfm
+import general.paper_utilities as pu
 
 from assignment.figure_helpers import *
 
@@ -446,6 +447,7 @@ def _plot_rfs(rf_cents, rf_wids, ax, scale=(0, 1), thin=10, color=None,
     for i, rfc in enumerate(rf_cents[::thin]):
         if cmap is not None:
             color = cmap(i/n_rfs)
+            color = cmap(.7)
         rfw = np.sqrt(rf_wids[i])
         l = ax.plot(cps[:, 0]*rfw[0] + rfc[0],
                     cps[:, 1]*rfw[1] + rfc[1],
@@ -464,28 +466,31 @@ def _plot_rfs(rf_cents, rf_wids, ax, scale=(0, 1), thin=10, color=None,
 def figure_fi(basefolder=bf, gen_panels=None, data=None):
     setup()
     if gen_panels is None:
-        gen_panels = ('a', 'bc', 'de')
+        gen_panels = ('a', 'de')
     if data is None:
         data = {}
 
-    fsize = (5, 5)
+    fsize = (5, 4.5)
     f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
-    schem_grid = gs[:28, :28]
-
-    mse_nu_grid = gs[27:43, 40:60]
-    ae_nu_grid = gs[27:43, 80:]
-
-    mse_pwr_grid = gs[:16, 40:60]
-    ae_pwr_grid = gs[:16, 80:]
-
-    iso_grid = gs[44:69, :33]
-    iso_neurs_grid = gs[85:, 0:8]
-    iso_pwr_grid = gs[85:, 25:33]
+    schem_o_grid = gs[:30, :45]
     
-    map_grid = gs[60:, 50:90]
-    map_cb_grid = gs[70:90, 95:]
+    schem_grid = gs[:33, 55:95]
+
+    out = pu.make_mxn_gridspec(gs, 4, 2, 35, 100, 0, 40, 5, 8)
+
+    mse_pwr_grid, mse_nu_grid = out[0]
+    ae_pwr_grid, ae_nu_grid = out[1]
+    thr_pwr_grid, thr_nu_grid = out[2]
+    tot_pwr_grid, tot_nu_grid = out[3]
+
+    # iso_grid = gs[44:69, :33]
+    # iso_neurs_grid = gs[85:, 0:8]
+    # iso_pwr_grid = gs[85:, 25:33]
+    
+    map_grid = gs[50:, 52:95]
+    map_cb_grid = gs[70:90, 98:]
 
     if data.get('a') is None and 'a' in gen_panels:
         rf_distrs = (sts.uniform(0, 1),)*2
@@ -502,6 +507,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     if 'a' in gen_panels:
         rf_cents, rf_wids = data['a']
         _plot_rfs(rf_cents, rf_wids, schem_ax)
+        schem_ax.set_aspect('equal')
 
     overlaps = (1, 2)
     n_n_units = 50
@@ -556,72 +562,44 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                       fi_emp_pwr, fi_theor_pwr, ae_theor_pwr)
 
     mse_nu_ax = f.add_subplot(mse_nu_grid)
-    ae_nu_ax = f.add_subplot(ae_nu_grid)
+    ae_nu_ax = f.add_subplot(ae_nu_grid, sharex=mse_nu_ax)
     mse_pwr_ax = f.add_subplot(mse_pwr_grid)
-    ae_pwr_ax = f.add_subplot(ae_pwr_grid)
-    if 'bc' in gen_panels:
-        fi_emp, fi_theor, ae_theor = data['bc'][:3]
-        for i, ov in enumerate(overlaps):
-            l = gpl.plot_trace_werr(n_units, 1/fi_emp[i], ax=mse_nu_ax,
-                                    log_x=True, log_y=False)
-            gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_nu_ax, log_x=True,
-                                log_y=False, color='k', 
-                                linestyle='dashed', ms=10)
-            gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_nu_ax, log_x=True,
-                                log_y=False, color=l[0].get_color(),
-                                linestyle='dashed')
-            gpl.plot_trace_werr(n_units, ae_theor[i], ax=ae_nu_ax, log_x=True,
-                                log_y=False)
-        mse_nu_ax.set_xlabel('N units')
-        ae_nu_ax.set_xlabel('N units')
-        mse_nu_ax.set_ylabel('inverse FI')
-        ae_nu_ax.set_ylabel('assignment\nerror rate')
+    ae_pwr_ax = f.add_subplot(ae_pwr_grid, sharex=mse_pwr_ax)
+    thr_nu_ax = f.add_subplot(thr_nu_grid, sharex=ae_nu_ax)
+    thr_pwr_ax = f.add_subplot(thr_pwr_grid, sharex=ae_pwr_ax)
 
-        fi_emp, fi_theor, ae_theor = data['bc'][3:]
-        for i, ov in enumerate(overlaps):
-            l = gpl.plot_trace_werr(n_units, 1/fi_emp[i], ax=mse_pwr_ax,
-                                    log_x=True, log_y=False,)
-            gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_pwr_ax, log_x=True,
-                                log_y=False, color='k', 
-                                linestyle='dashed', ms=10)
-            gpl.plot_trace_werr(n_units, 1/fi_theor[i], ax=mse_pwr_ax, log_x=True,
-                                log_y=False, color=l[0].get_color(),
-                                linestyle='dashed')
-            gpl.plot_trace_werr(n_units, ae_theor[i], ax=ae_pwr_ax, log_x=True,
-                                log_y=False)
-        mse_pwr_ax.set_xlabel('power')
-        ae_pwr_ax.set_xlabel('power')
-        mse_pwr_ax.set_yscale('log')
-        ae_pwr_ax.set_yscale('log')
-        mse_pwr_ax.set_ylabel('inverse FI')
-        ae_pwr_ax.set_ylabel('assignment\nerror rate')
-
+    tot_nu_ax = f.add_subplot(tot_nu_grid, sharex=ae_nu_ax)
+    tot_pwr_ax = f.add_subplot(tot_pwr_grid, sharex=ae_pwr_ax)
+    
     data_path = 'assignment/many_mse_tradeoffs-nr3.pkl'
     if data.get('de') is None and 'de' in gen_panels:
         out = pickle.load(open(data_path, 'rb'))
         data['de'] = out
 
-    iso_ax = f.add_subplot(iso_grid)
-    iso_neurs_ax = f.add_subplot(iso_neurs_grid)
-    iso_pwr_ax = f.add_subplot(iso_pwr_grid)
+        
+    # iso_ax = f.add_subplot(iso_grid)
+    # iso_neurs_ax = f.add_subplot(iso_neurs_grid)
+    # iso_pwr_ax = f.add_subplot(iso_pwr_grid)
     map_ax = f.add_subplot(map_grid)
     map_cb_ax = f.add_subplot(map_cb_grid)
     if 'de' in gen_panels:
-        ax_vals, total_mse, mse_dist, ae_rate = data['de'][:4]
+        ax_vals, total_mse, mse_dist, ae_rate, mis_prob = data['de'][:5]
         total_units, n_feats, overlaps, total_pwrs = ax_vals
         # indices are (units, feats, overlaps, pwrs)
         pwr_ind = 20
         neurs_ind = 20
         feat_ind = 4
         print(n_feats[feat_ind], total_pwrs[pwr_ind])
-
+        total_snrs = np.sqrt(total_pwrs)
+        
         # print('nf', n_feats[feat_ind])
         var = 1/6
         use_regions = (2,)
-        td_thresh = .01
+        td_thresh = .1
         region_list = []
         min_maps = []
 
+        print(mis_prob[1].shape)
         linestyles = ('solid', 'solid')
         ov_thresh = 4
         for k, mse_r in mse_dist.items():            
@@ -639,7 +617,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                                  + mse_i)
                 spec_mse = mse_i*(1 - ae_r)
                 spec_ae_dist = ae_distortion*ae_r
-                if k in use_regions and ov < ov_thresh:
+                if False and k in use_regions and ov < ov_thresh:
                     ls = linestyles[use_regions.index(k)]
                     l = gpl.plot_trace_werr(spec_mse[:, feat_ind, i, pwr_ind],
                                             spec_ae_dist[:, feat_ind, i, pwr_ind],
@@ -676,7 +654,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         min_regions = np.stack(min_maps, axis=0)
         num_regions = np.nanargmin(min_regions, axis=0)
         plot_map = np.array(region_list, dtype=float)[num_regions]
-        total_thresh = .1
+        total_thresh = 1/2
         plot_map[np.nanmin(min_regions, axis=0) > total_thresh] = np.nan
         cmap_name = 'Blues'
         cmap = plt.get_cmap(cmap_name)
@@ -693,18 +671,18 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         f.colorbar(mappable, cax=map_cb_ax,
                    boundaries=bounds, ticks=possibles,
                    label='number of regions')
-        cm = gpl.pcolormesh(total_pwrs, total_units, plot_map,
+        cm = gpl.pcolormesh(total_snrs, total_units, plot_map,
                             ax=map_ax, cmap=cmap, vmin=0, vmax=max(possibles))
 
         
         map_ax.set_xscale('log')
         map_ax.set_yscale('log')
-        map_ax.set_xlabel('total power')
+        map_ax.set_xlabel('total SNR')
         map_ax.set_ylabel('total units')
         map_ax.set_title('K = {}'.format(n_feats[feat_ind]))
         
         # iso_ax.set_aspect('equal')
-        iso_ax.set_xscale('log')
+        # iso_ax.set_xscale('log')
         rads = [.01, .02]
         labels = ['constant\ntotal distortion', '']
         for i, rad in enumerate(rads):
@@ -714,20 +692,90 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
             # iso_ax.plot(x, y, linestyle='dashed', color='k',
             #             label=labels[i])
         # iso_ax.legend(frameon=False)
-        iso_ax.set_xlabel('local MSE')
-        iso_ax.set_ylabel('assignment MSE')
+        # iso_ax.set_xlabel('local MSE')
+        # iso_ax.set_ylabel('assignment MSE')
         
-        gpl.clean_plot(iso_neurs_ax, 0)
-        iso_neurs_ax.set_yscale('log')
-        iso_neurs_ax.set_xlabel('C')
-        iso_neurs_ax.set_ylabel('required units')
+        # gpl.clean_plot(iso_neurs_ax, 0)
+        # iso_neurs_ax.set_yscale('log')
+        # iso_neurs_ax.set_xlabel('C')
+        # iso_neurs_ax.set_ylabel('required units')
 
-        gpl.clean_plot(iso_pwr_ax, 0)
-        iso_pwr_ax.set_yscale('log')
-        iso_pwr_ax.set_xlabel('C')
-        iso_pwr_ax.set_ylabel('required power')
+        # gpl.clean_plot(iso_pwr_ax, 0)
+        # iso_pwr_ax.set_yscale('log')
+        # iso_pwr_ax.set_xlabel('C')
+        # iso_pwr_ax.set_ylabel('required power')
 
 
+        # indices are (units, feats, overlaps, pwrs)
+        pwr_ind = 30
+        neurs_ind = 30
+        feat_ind = 4
+        ov_ind = 0
+        for i, (nr, mse_nr) in enumerate(mse_dist.items()):
+            ae_nr = ae_rate[nr]
+            mse_nu = mse_nr[:, feat_ind, ov_ind, pwr_ind]
+            col = colors[i]
+            l = gpl.plot_trace_werr(total_units, nr*mse_nu, ax=mse_nu_ax,
+                                    color=col)
+            col = l[0].get_color()
+            mse_pwr = mse_nr[neurs_ind, feat_ind, ov_ind]
+            gpl.plot_trace_werr(total_snrs, nr*mse_pwr, ax=mse_pwr_ax,
+                                color=col)
+
+            if nr > 1:
+                ae_nu = ae_nr[:, feat_ind, ov_ind, pwr_ind]
+                gpl.plot_trace_werr(total_units, ae_nu*nr, ax=ae_nu_ax,
+                                    color=col)
+                ae_pwr = ae_nr[neurs_ind, feat_ind, ov_ind]
+                gpl.plot_trace_werr(total_snrs, ae_pwr*nr, ax=ae_pwr_ax,
+                                    color=col)
+
+            mp_pwr = mis_prob[nr][neurs_ind, feat_ind, ov_ind]
+            thr_pwr = list(mp[0] for mp in mp_pwr)
+            gpl.plot_trace_werr(total_snrs, thr_pwr, ax=thr_pwr_ax, color=col,
+                                log_y=True)
+
+            mp_nu = mis_prob[nr][:, feat_ind, ov_ind, pwr_ind]
+            thr_nu = list(mp[0] for mp in mp_nu)
+            gpl.plot_trace_werr(total_units, thr_nu, ax=thr_nu_ax, color=col,
+                                log_y=True)
+                
+            tot_pwr = total_mse[nr][neurs_ind, feat_ind, ov_ind]
+            gpl.plot_trace_werr(total_snrs, tot_pwr, ax=tot_pwr_ax, color=col)
+
+            tot_nu = total_mse[nr][:, feat_ind, ov_ind, pwr_ind]
+            gpl.plot_trace_werr(total_units, tot_nu, ax=tot_nu_ax, color=col)
+                
+        ae_pwr_ax.set_xscale('log')
+        ae_nu_ax.set_xscale('log')
+        mse_pwr_ax.set_xscale('log')
+        mse_nu_ax.set_xscale('log')
+        tot_pwr_ax.set_xscale('log')
+        tot_nu_ax.set_xscale('log')
+
+        ae_pwr_ax.set_xlabel('pop SNR')
+        mse_pwr_ax.set_xlabel('pop SNR')
+        tot_pwr_ax.set_xlabel('pop SNR')
+        ae_nu_ax.set_xlabel('num units')
+        mse_nu_ax.set_xlabel('num units')
+        tot_nu_ax.set_xlabel('num units')
+
+        ae_pwr_ax.set_ylabel('AE rate')
+        mse_pwr_ax.set_ylabel('local MSE')
+        ae_nu_ax.set_ylabel('AE rate')
+        mse_nu_ax.set_ylabel('local MSE')
+        
+        tot_pwr_ax.set_ylabel('total MSE')
+        tot_nu_ax.set_ylabel('total MSE')
+        
+        ae_pwr_ax.set_yscale('log')
+        ae_nu_ax.set_yscale('log')
+        mse_pwr_ax.set_yscale('log')
+        mse_nu_ax.set_yscale('log')
+        tot_pwr_ax.set_yscale('log')
+        tot_nu_ax.set_yscale('log')
+
+        
     # plot transition map between two and three regions
     # for final piece
     fname = os.path.join(bf, 'fig_fi-py.svg')

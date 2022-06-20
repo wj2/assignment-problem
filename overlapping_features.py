@@ -145,8 +145,8 @@ def explore_mse_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
     for ind, total, ds, aers, mp, me in out:
         for k, d_k in ds.items():
             totals[k][ind] = total[k]
-            distorts[k][ind] = np.mean(d_k) # np.product(d_k)/np.sum(d_k)
-            ae_rates[k][ind] = np.mean(aers[k])
+            distorts[k][ind] = np.sum(d_k) # np.product(d_k)/np.sum(d_k)
+            ae_rates[k][ind] = np.sum(aers[k])
             mis_prob[k][ind] = mp[k]
             mis_err[k][ind] = me[k]
             
@@ -197,12 +197,15 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
             for i, dpr_i in enumerate(dims_per_region):
                 ri_pwr = total_pwr*dpr_i/dims_to_rep
                 ri_units = int(np.round(total_units*dpr_i/dims_to_rep))
-                
-                out = rfm.min_mse_power(ri_pwr, ri_units, dpr_i,
-                                        local_min_max=ret_min_max,
-                                        lambda_deviation=lambda_deviation,
-                                        **kwargs)
-                l_mse, nl_mse, nl_prob = out
+
+                out = rfm.min_mse_vec(ri_pwr, ri_units, dpr_i,
+                                      lam=lambda_deviation,
+                                      **kwargs)
+                # out = rfm.min_mse_power(ri_pwr, ri_units, dpr_i,
+                #                         local_min_max=ret_min_max,
+                #                         lambda_deviation=lambda_deviation,
+                #                         **kwargs)
+                _, l_mse, nl_mse, nl_prob = out
                 distorts[nr][i] = l_mse*dpr_i
                 ae_distorts[nr][i] = l_mse
                 mis_prob[nr][i] = nl_prob

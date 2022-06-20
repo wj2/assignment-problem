@@ -200,6 +200,7 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
 
                 out = rfm.min_mse_vec(ri_pwr, ri_units, dpr_i,
                                       lam=lambda_deviation,
+                                      ret_components=True,
                                       **kwargs)
                 # out = rfm.min_mse_power(ri_pwr, ri_units, dpr_i,
                 #                         local_min_max=ret_min_max,

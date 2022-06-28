@@ -573,9 +573,9 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     
     data_path = 'assignment/many_mse_tradeoffs-nr3.pkl'
     if data.get('de') is None and 'de' in gen_panels:
+        print('loading')
         out = pickle.load(open(data_path, 'rb'))
         data['de'] = out
-
         
     # iso_ax = f.add_subplot(iso_grid)
     # iso_neurs_ax = f.add_subplot(iso_neurs_grid)
@@ -586,8 +586,8 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         ax_vals, total_mse, mse_dist, ae_rate, mis_prob = data['de'][:5]
         total_units, n_feats, overlaps, total_pwrs = ax_vals
         # indices are (units, feats, overlaps, pwrs)
-        pwr_ind = 20
-        neurs_ind = 20
+        pwr_ind = 25
+        neurs_ind = 25
         feat_ind = 4
         print(n_feats[feat_ind], total_pwrs[pwr_ind])
         total_snrs = np.sqrt(total_pwrs)
@@ -604,6 +604,7 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         ov_thresh = 4
         for k, mse_r in mse_dist.items():            
             ae_r = ae_rate[k]
+            ae_r[ae_r > 1] = 1
             td_maps = []
             rep_feats = []
             for i, ov in enumerate(overlaps):
@@ -647,8 +648,9 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                 td_map = total_mse[k][:, feat_ind, i, :]
                 td_maps.append(td_map)
             full_map_k = np.stack(td_maps, axis=0)
-            # min_map_k = td_maps[0] # np.min(full_map_k, axis=0)
+            min_map_k = full_map_k[0] # np.min(full_map_k, axis=0)
             min_map_k = np.nanmin(full_map_k, axis=0)
+            
             min_maps.append(min_map_k)
             region_list.append(k)
         min_regions = np.stack(min_maps, axis=0)
@@ -707,12 +709,13 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
 
 
         # indices are (units, feats, overlaps, pwrs)
-        pwr_ind = 30
-        neurs_ind = 30
+        pwr_ind = -1
+        neurs_ind = -1
         feat_ind = 4
         ov_ind = 0
         for i, (nr, mse_nr) in enumerate(mse_dist.items()):
             ae_nr = ae_rate[nr]
+            ae_nr[ae_nr > 1] = 1
             mse_nu = mse_nr[:, feat_ind, ov_ind, pwr_ind]
             col = colors[i]
             l = gpl.plot_trace_werr(total_units, nr*mse_nu, ax=mse_nu_ax,

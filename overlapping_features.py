@@ -675,7 +675,7 @@ def mse_weighting(k, c, s, source_distrib='uniform', n_emp=10000):
         avg_dist = np.mean(d_rs)**2
     return avg_dist
 
-def integrate_assignment_error(esses, d1, d2, overlapping_d, p=100):
+def integrate_assignment_error(esses, d1, d2, overlapping_d, p=100, **kwargs):
     if d1 is None and d2 is not None:
         d1 = d2
     elif d2 is None and d1 is not None:
@@ -696,9 +696,9 @@ def integrate_assignment_error(esses, d1, d2, overlapping_d, p=100):
         dist_pdf = lambda x: line_picking_clt(x, overlapping_d)
     if overlapping_d <= 3 or overlapping_d > 10:
         ae = ae_integ(esses, d1, d2, p=p, integ_start=0, integ_end=integ_end,
-                      dist_pdf=dist_pdf)
+                      dist_pdf=dist_pdf, **kwargs)
     else:
-        ae = ae_sample(esses, d1, d2, overlapping_d, p=p)
+        ae = ae_sample(esses, d1, d2, overlapping_d, p=p, **kwargs)
     return ae
 
 def distance_error_rate(dists, delta_d, overall_d):
@@ -742,19 +742,25 @@ def ae_sample(esses, d1, d2, overlapping_d, p=1, n_samples=10**7, **kwargs):
     return errs        
 
 def ae_integ(esses, d1, d2, p=1, integ_start=0, integ_end=None, dist_pdf=None,
-             err_thr=.01, assert_=False):
+             err_thr=.01, assert_=False, use_factor=True):
     pes = np.zeros_like(d1)
     for i, d1_i in enumerate(d1):
         d2_i = d2[i]
+        if use_factor:
+            factor = 1/d1_i
+        else:
+            factor = 1
         def _f(x):
             v1 = dist_pdf(x)
             # v2 = sts.norm(x, np.sqrt(d1_i + d2_i)).cdf(0)
             v2 = sts.norm(x, np.sqrt(2*d1_i)).cdf(0)
             v3 = sts.norm(x, np.sqrt(2*d2_i)).cdf(0)
-            v = v1*(v2 + v3 - 2*v2*v3)
+            v = factor*v1*(v2 + v3 - 2*v2*v3)
             return v
-           
-        pes[i], err = sin.quad(_f, integ_start, integ_end)
+
+        out = sin.quad(_f, integ_start, integ_end)
+        pes[i] = out[0]/factor
+        err = out[1]
         if assert_:
             assert err < err_thr
         elif err > err_thr:

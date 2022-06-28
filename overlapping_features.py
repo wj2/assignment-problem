@@ -237,7 +237,8 @@ def calc_te(d_l, p_ae, p_nl, d_nl, n_regions, n_stim=2):
     if n_regions > 1:
         ae_risk = 0
         for (j, k) in it.combinations(range(n_regions), 2):
-            ae_risk_jk = (p_ae[j, k]*(d_nl[j] + d_nl[k])
+            ae_risk_jk = (p_ae[j, k]*n_stim*min(d_nl[j] + d_l[k],
+                                                d_nl[k] + d_l[j])
                           + (1 - p_ae[j, k])*(d_l[j] + d_l[k]))
             ae_risk = ae_risk + ae_risk_jk
     else:

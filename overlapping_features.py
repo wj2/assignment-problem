@@ -230,20 +230,25 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
     return total_err, distorts, ae_rates, mis_prob, mis_err
 
 
-def calc_te(d_l, p_ae, p_nl, d_nl, n_regions, n_stim=2):
+def calc_te(d_l, p_ae, p_nl, d_nl, n_regions, n_stim=2, p_thr=.01):
     # local errors only
-    p_local = np.product((1 - p_nl)**n_stim)
-
-    if n_regions > 1:
-        ae_risk = 0
-        for (j, k) in it.combinations(range(n_regions), 2):
-            ae_risk_jk = (p_ae[j, k]*min(d_nl[j] + d_l[k],
-                                         d_nl[k] + d_l[j])
-                          + (1 - p_ae[j, k])*(d_l[j] + d_l[k]))
-            ae_risk = ae_risk + ae_risk_jk
+    p_local = np.product(1 - p_nl)**n_stim
+    if p_local > p_thr:
+        te = np.nan
     else:
-        ae_risk = d_l[0]
-    te = p_local*ae_risk + (1 - p_local)*np.mean(d_nl)
+        # if n_regions > 1:
+        #     ae_risk = 0
+        #     for (j, k) in it.combinations(range(n_regions), 2):
+        #         ae_risk_jk = (p_ae[j, k]*min(d_nl[j] + d_l[k],
+        #                                      d_nl[k] + d_l[j])
+        #                       + (1 - p_ae[j, k])*(d_l[j] + d_l[k]))
+        #         ae_risk = ae_risk + ae_risk_jk
+        # else:
+        #     ae_risk = d_l[0]
+        ae_risk = ss.binom(n_regions, 2)*2*np.mean(d_nl)*p_ae
+        te = ae_risk + n_stim*n_regions*np.mean(d_l))
+
+        # te = p_local*ae_risk + (1 - p_local)*np.mean(d_nl)
     return te    
 
 def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,

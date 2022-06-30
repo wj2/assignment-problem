@@ -245,7 +245,12 @@ def calc_te(d_l, p_ae, p_nl, d_nl, n_regions, n_stim=2, p_thr=.1):
         #         ae_risk = ae_risk + ae_risk_jk
         # else:
         #     ae_risk = d_l[0]
-        ae_risk = ss.binom(n_regions, 2)*2*np.mean(d_nl)*p_ae
+        prob_mask = ~np.identity(p_ae.shape[0], dtype=bool)
+        if np.any(prob_mask):
+            p_ae_m =  np.mean(p_ae[prob_mask])
+        else:
+            p_ae_m = 0
+        ae_risk = ss.binom(n_regions, 2)*2*np.mean(d_nl)*p_ae_m
         te = ae_risk + n_stim*n_regions*np.mean(d_l)
 
         # te = p_local*ae_risk + (1 - p_local)*np.mean(d_nl)

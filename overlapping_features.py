@@ -230,10 +230,10 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
     return total_err, distorts, ae_rates, mis_prob, mis_err
 
 
-def calc_te(d_l, p_ae, p_nl, d_nl, n_regions, n_stim=2, p_thr=.01):
+def calc_te(d_l, p_ae, p_nl, d_nl, n_regions, n_stim=2, p_thr=.1):
     # local errors only
     p_local = np.product(1 - p_nl)**n_stim
-    if p_local > p_thr:
+    if p_local < (1 - p_thr):
         te = np.nan
     else:
         # if n_regions > 1:
@@ -246,7 +246,7 @@ def calc_te(d_l, p_ae, p_nl, d_nl, n_regions, n_stim=2, p_thr=.01):
         # else:
         #     ae_risk = d_l[0]
         ae_risk = ss.binom(n_regions, 2)*2*np.mean(d_nl)*p_ae
-        te = ae_risk + n_stim*n_regions*np.mean(d_l))
+        te = ae_risk + n_stim*n_regions*np.mean(d_l)
 
         # te = p_local*ae_risk + (1 - p_local)*np.mean(d_nl)
     return te    

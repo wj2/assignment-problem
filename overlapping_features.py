@@ -177,6 +177,29 @@ def explore_fi_tradeoff_parallel(n_units, total_dims, overlaps, total_pwrs,
             ae_rates[k][ind] = np.mean(aers[k])
     return args, distorts, ae_rates
 
+@u.arg_list_decorator
+def compute_transition(total_dims, total_pwrs, total_units, nrs=(1, 2, 3),
+                       overlap=1):
+    l_mse = np.zeros((len(nrs), len(total_dims), len(total_pwrs),
+                      len(total_units)))
+    nl_mse = np.zeros_like(l_mse)
+    tot_noae = np.zeros_like(l_mse)
+    ae_rate = np.zeros_like(l_mse)
+    tot_nothr = np.zeros_like(l_mse)
+    for (nr_i, td_i, tp_i, tu_i) in u.make_array_ind_iterator(l_mse.shape):
+        nr, td, tp, tu = (nrs[nr_i], total_dims[td_i], total_pwrs[tp_i],
+                          total_units[tu_i])
+        out = mse_tradeoff(tu, td, n_regions=(nr,), overlap=overlap,
+                           total_pwr=tp)
+        tot_te, ld, ae_prob, t_prob, t_mag = out
+        l_mse[nr_i, td_i, tp_i, tu_i] = np.sum(ld[nr])
+        nl_mse[nr_i, td_i, tp_i, tu_i] = np.sum(t_prob[nr]*t_mag[nr])
+        tot = np.sum(ld[nr]*(1 - t_prob[nr]) + t_prob[nr]*t_mag[nr])
+        tot_noae[nr_i, td_i, tp_i, tu_i] = tot
+        ae_rate[nr_i, td_i, tp_i, tu_i] = np.sum(ae_prob[nr])
+        tot_nothr[nr_i, td_i, tp_i, tu_i] = tot_te[nr]
+    return tot_nothr, tot_noae, l_mse, nl_mse, ae_rate
+
 def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
                  n_stim=2, total_pwr=10, ret_min_max=True, lambda_deviation=2,
                  **kwargs):

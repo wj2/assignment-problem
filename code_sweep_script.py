@@ -1,16 +1,27 @@
 
+import argparse
 import pickle
 import numpy as np
 import superposition_codes.codes as spc
+
+
+def create_parser():
+    parser = argparse.ArgumentParser(description='fit several modularizers')
+    parser.add_argument('-o', '--output_file',
+                        default='assignment/code_param_sweep.pkl', type=str)
+    return parser
 
 if __name__ == '__main__':
     pwr_range = np.logspace(.5, 2, 100)
     nu_range = np.logspace(2, 3.5, 100, dtype=int)
     fix_ind = 50
     dims = (1, 2)
-    n_samps = 1000
+    n_samps = 100
 
-    fname = 'assignment/param_sweep_rfs.pkl'
+    parser = create_parser()
+    args = parser.parse_args()
+
+    fname = args.output_file
     
     out_pwr = spc.sweep_code_performance(pwr_range, nu_range[fix_ind], dims,
                                          n_samps=n_samps)

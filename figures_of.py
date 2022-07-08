@@ -471,19 +471,6 @@ def plot_transition(total_dims, total_pwrs, total_units, nrs=(1, 2, 3),
                for ov in overlaps}
     return ov_dict
 
-def example_sweeps():
-    pwr_range = np.logspace(.5, 2, 100)
-    nu_range = np.logspace(2, 3.5, 100, dtype=int)
-    fix_ind = 50
-    dims = (1, 2)
-    n_samps = 1000
-    
-    out_pwr = spc.sweep_code_performance(pwr_range, nu_range[fix_ind], dims,
-                                         n_samps=n_samps)
-    out_nu = spc.sweep_code_performance(pwr_range[fix_ind], nu_range, dims,
-                                        n_samps=n_samps)
-    return pwr_range, nu_range, dims, out_pwr, out_nu
-
 def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
     setup()
     if gen_panels is None:

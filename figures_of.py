@@ -12,6 +12,7 @@ import pickle
 import scipy.stats as sts
 import os
 import assignment.ff_integration as ff
+import matplotlib.patheffects as pe
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1.inset_locator import InsetPosition
 
@@ -20,6 +21,7 @@ import general.paper_utilities as pu
 import superposition_codes.codes as spc
 
 from assignment.figure_helpers import *
+import assignment.auxiliary as aa
 
 bf = ('/Users/wjj/Dropbox/research/analysis/'
       'assignment/figs/')
@@ -446,7 +448,7 @@ def _plot_rfs(rf_cents, rf_wids, ax, scale=(0, 1), thin=10, color=None,
     n_rfs = len(rf_cents[::thin])
     col = None
     for i, rfc in enumerate(rf_cents[::thin]):
-        if cmap is not None:
+        if cmap is not None and color is None:
             color = cmap(i/n_rfs)
             color = cmap(.7)
         rfw = np.sqrt(rf_wids[i])
@@ -471,6 +473,7 @@ def plot_transition(total_dims, total_pwrs, total_units, nrs=(1, 2, 3),
                for ov in overlaps}
     return ov_dict
 
+
 def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
     setup()
     if gen_panels is None:
@@ -478,7 +481,7 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
     if data is None:
         data = {}    
 
-    fsize = (5, 2)
+    fsize = (6.5, 1.5)
     f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
@@ -487,7 +490,7 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
     schem_ax = f.add_subplot(out[0, 0])
     hist_ax = f.add_subplot(out[0, 1])
     pwr_ax = f.add_subplot(out[0, 2])
-    nu_ax = f.add_subplot(out[0, 3])
+    nu_ax = f.add_subplot(out[0, 3], sharey=pwr_ax)
 
     if data.get('a') is None and 'a' in gen_panels:
         rf_distrs = (sts.uniform(0, 1),)*2
@@ -501,30 +504,64 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
         data['a'] = (rf_cents, rf_wids)
 
     if 'a' in gen_panels:
+        rf_colors = np.array((148, 191, 167))/255
+        
         rf_cents, rf_wids = data['a']
-        _plot_rfs(rf_cents, rf_wids, schem_ax)
+        _plot_rfs(rf_cents, rf_wids, schem_ax, color=rf_colors)
         schem_ax.set_aspect('equal')
         
-    
+
+    folder = 'assignment/code_param_sweep'
+    jobid = '2765984'
     if data.get('bcd') is None and 'bcd' in gen_panels:
-        data['bcd'] = example_sweeps()
+        data['bcd'] = aa.load_sweeps(folder, jobid)
 
-    # hist_pwr_ind = 40
-    # hist_dim_ind = 0
-    # if 'bcd' in gen_panels:
-    #     pwr_range, nu_range, dims, out_pwr, out_nu = data['bcd']
-    #     errs = out_pwr[0][hist_pwr_ind, 0, hist_dim_ind]
-    #     hist_ax.hist(errs)
+    hist_pwr_ind = 51
+    hist_dim_ind = 0
+    if 'bcd' in gen_panels:
+        out = data['bcd']
+        pwr_range, nu_range, dims = out['params']
+        snr_range = np.sqrt(pwr_range)
+        out_pwr = out['pwr_sweep']
+        out_nus = out['nus_sweep']
+        errs = out_pwr[0][hist_pwr_ind, 0, hist_dim_ind]
+        bins = np.logspace(-8, 0, 30)
 
-    #     for i, dim in enumerate(dims):
-    #         l = gpl.plot_trace_werr(pwr_range, out_pwr[1][:, 0, i], ax=pwr_ax,
-    #                                 label='D = {}'.format(dim))
-    #         col = l[0].get_color()
-    #         pwr_ax.plot(pwr_range, out_pwr[2][:, 0, i], color=col)
-            
-    #         gpl.plot_trace_werr(nu_range, out_nu[1][0, :, i], ax=nu_ax,
-    #                             label='D = {}'.format(dim), color=col)
-    #         nu_ax.plot(nu_range, out_nu[2][0, :, i], color=col)
+        local_col = np.array((112, 108, 97))/255
+        thr_col = np.array((148, 28, 47))/255 + .2
+        
+        hist_ax.hist(errs, bins=bins, label='local', color=local_col)
+        hist_ax.hist(errs[errs > 10**(-1)], bins=bins,
+                     label='threshold', color=thr_col)
+        hist_ax.set_xscale('log')
+        hist_ax.legend(frameon=False)
+
+        d1_color = np.array((192, 214, 223))/255
+        d2_color = np.array((74, 111, 165))/255
+        colors = (d1_color, d2_color)
+        for i, dim in enumerate(dims):
+            l = gpl.plot_trace_werr(snr_range, out_pwr[1][:, 0, i].T, ax=pwr_ax,
+                                    conf95=True, log_y=True, color=colors[i])
+            col = l[0].get_color()
+            pwr_ax.plot(snr_range, out_pwr[2][:, 0, i], color='k',
+                        linestyle='dashed', linewidth=1.5)
+            pwr_ax.plot(snr_range, out_pwr[2][:, 0, i], color=col,
+                       linestyle='dashed', linewidth=1.2)
+
+            gpl.plot_trace_werr(nu_range, out_nus[1][0, :, i].T, ax=nu_ax,
+                                label='D = {}'.format(dim), color=col,
+                                conf95=True, log_x=True, log_y=True )
+            nu_ax.plot(nu_range, out_nus[2][0, :, i], color='k',
+                       linestyle='dashed', linewidth=1.5)
+            nu_ax.plot(nu_range, out_nus[2][0, :, i], color=col,
+                       linewidth=1.2, linestyle='dashed')
+        hist_ax.set_xlabel('squared error')
+        hist_ax.set_ylabel('log density')
+        hist_ax.set_yscale('log')
+        gpl.clean_plot(hist_ax, 0)
+        pwr_ax.set_ylabel('MSE')
+        pwr_ax.set_xlabel('SNR')
+        nu_ax.set_xlabel('N units')
     return data
             
         

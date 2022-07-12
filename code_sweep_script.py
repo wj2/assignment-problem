@@ -14,7 +14,8 @@ def create_parser():
 if __name__ == '__main__':
     pwr_range = np.logspace(.5, 2, 100)
     nu_range = np.logspace(2, 3.5, 100, dtype=int)
-    fix_ind = 50
+    pwr_fix_ind = 50
+    nus_fix_ind = 75
     dims = (1, 2)
     n_samps = 100
 
@@ -23,9 +24,9 @@ if __name__ == '__main__':
 
     fname = args.output_file
     
-    out_pwr = spc.sweep_code_performance(pwr_range, nu_range[fix_ind], dims,
+    out_pwr = spc.sweep_code_performance(pwr_range, nu_range[pwr_fix_ind], dims,
                                          n_samps=n_samps)
-    out_nu = spc.sweep_code_performance(pwr_range[fix_ind], nu_range, dims,
+    out_nu = spc.sweep_code_performance(pwr_range[nus_fix_ind], nu_range, dims,
                                         n_samps=n_samps)
     out = {'params':(pwr_range, nu_range, dims), 'sweep_ind':fix_ind,
            'pwr_sweep':out_pwr, 'nu_sweep':out_nu}

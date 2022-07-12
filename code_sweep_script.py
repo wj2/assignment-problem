@@ -13,10 +13,10 @@ def create_parser():
 
 if __name__ == '__main__':
     pwr_range = np.logspace(.5, 2, 100)
-    nu_range = np.logspace(2, 3.5, 100, dtype=int)
-    fix_ind = 50
+    nu_range = np.logspace(2, 3.2, 100, dtype=int)
+    fix_ind = 75
     dims = (1, 2)
-    n_samps = 100
+    n_samps = 10
 
     parser = create_parser()
     args = parser.parse_args()

@@ -28,7 +28,8 @@ if __name__ == '__main__':
                                          n_samps=n_samps)
     out_nu = spc.sweep_code_performance(pwr_range[nus_fix_ind], nu_range, dims,
                                         n_samps=n_samps)
-    out = {'params':(pwr_range, nu_range, dims), 'sweep_ind':fix_ind,
+    out = {'params':(pwr_range, nu_range, dims), 'pwr_sweep_ind':pwr_fix_ind,
+           'nus_sweep_ind':nus_fix_ind,
            'pwr_sweep':out_pwr, 'nu_sweep':out_nu}
     pickle.dump(out, open(fname, 'wb'))
     

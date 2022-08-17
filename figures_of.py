@@ -512,11 +512,12 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
         
 
     folder = 'assignment/code_param_sweep'
-    jobid = '2765984'
+    jobid = '2791816'
     if data.get('bcd') is None and 'bcd' in gen_panels:
+        print('loading')
         data['bcd'] = aa.load_sweeps(folder, jobid)
 
-    hist_pwr_ind = 51
+    hist_pwr_ind = 48
     hist_dim_ind = 0
     if 'bcd' in gen_panels:
         out = data['bcd']
@@ -530,6 +531,10 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
         local_col = np.array((112, 108, 97))/255
         thr_col = np.array((148, 28, 47))/255 + .2
         
+        # gpl.add_vlines(out_pwr[3][hist_pwr_ind, 0, hist_dim_ind],
+        #                hist_ax)
+        # gpl.add_vlines(1/6,
+        #                hist_ax)
         hist_ax.hist(errs, bins=bins, label='local', color=local_col)
         hist_ax.hist(errs[errs > 10**(-1)], bins=bins,
                      label='threshold', color=thr_col)
@@ -547,6 +552,9 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
                         linestyle='dashed', linewidth=1.5)
             pwr_ax.plot(snr_range, out_pwr[2][:, 0, i], color=col,
                        linestyle='dashed', linewidth=1.2)
+            pwr_ax.plot(snr_range, out_pwr[3][:, 0, i], color=col,
+                        linestyle='dotted', linewidth=1.2)
+            
 
             gpl.plot_trace_werr(nu_range, out_nus[1][0, :, i].T, ax=nu_ax,
                                 label='D = {}'.format(dim), color=col,
@@ -555,17 +563,20 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
                        linestyle='dashed', linewidth=1.5)
             nu_ax.plot(nu_range, out_nus[2][0, :, i], color=col,
                        linewidth=1.2, linestyle='dashed')
+            nu_ax.plot(nu_range, out_nus[3][0, :, i], color=col,
+                        linestyle='dotted', linewidth=1.2)
+            
         hist_ax.set_xlabel('squared error')
-        hist_ax.set_ylabel('log density')
+        hist_ax.set_ylabel('log count')
         hist_ax.set_yscale('log')
         gpl.clean_plot(hist_ax, 0)
-        pwr_ax.set_ylabel('MSE')
+        pwr_ax.set_ylabel('total MSE')
         pwr_ax.set_xlabel('SNR')
         nu_ax.set_xlabel('N units')
+        
+    fname = os.path.join(bf, 'fig_fi_intro-py.svg')
+    f.savefig(fname, bbox_inches='tight', transparent=True)
     return data
-            
-        
-        
         
 def figure_fi(basefolder=bf, gen_panels=None, data=None):
     setup()
@@ -579,15 +590,13 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     gs = f.add_gridspec(100, 100)
 
     schem_o_grid = gs[:30, :45]
+    f.add_subplot(schem_o_grid)
     
-    schem_grid = gs[:33, 55:95]
-
-    out = pu.make_mxn_gridspec(gs, 4, 2, 35, 100, 0, 40, 5, 8)
+    out = pu.make_mxn_gridspec(gs, 3, 2, 45, 100, 0, 40, 5, 8)
 
     mse_pwr_grid, mse_nu_grid = out[0]
     ae_pwr_grid, ae_nu_grid = out[1]
-    thr_pwr_grid, thr_nu_grid = out[2]
-    tot_pwr_grid, tot_nu_grid = out[3]
+    tot_pwr_grid, tot_nu_grid = out[2]
 
     # iso_grid = gs[44:69, :33]
     # iso_neurs_grid = gs[85:, 0:8]
@@ -595,23 +604,6 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     
     map_grid = gs[50:, 52:95]
     map_cb_grid = gs[70:90, 98:]
-
-    if data.get('a') is None and 'a' in gen_panels:
-        rf_distrs = (sts.uniform(0, 1),)*2
-        n_units = 1000
-        n_feats = 2
-        pwr = 20
-        fi, fi_var, _, w, _ = rfm.max_fi_power(pwr, n_units, n_feats)
-                
-        rf_cents, rf_wids = rfm.get_random_uniform_fill(n_units, rf_distrs,
-                                                        wid=w)
-        data['a'] = (rf_cents, rf_wids)
-
-    schem_ax = f.add_subplot(schem_grid)
-    if 'a' in gen_panels:
-        rf_cents, rf_wids = data['a']
-        _plot_rfs(rf_cents, rf_wids, schem_ax)
-        schem_ax.set_aspect('equal')
 
     overlaps = (1, 2)
     n_n_units = 50
@@ -669,8 +661,6 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     ae_nu_ax = f.add_subplot(ae_nu_grid, sharex=mse_nu_ax)
     mse_pwr_ax = f.add_subplot(mse_pwr_grid)
     ae_pwr_ax = f.add_subplot(ae_pwr_grid, sharex=mse_pwr_ax)
-    thr_nu_ax = f.add_subplot(thr_nu_grid, sharex=ae_nu_ax)
-    thr_pwr_ax = f.add_subplot(thr_pwr_grid, sharex=ae_pwr_ax)
 
     tot_nu_ax = f.add_subplot(tot_nu_grid, sharex=ae_nu_ax)
     tot_pwr_ax = f.add_subplot(tot_pwr_grid, sharex=ae_pwr_ax)
@@ -693,17 +683,14 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         pwr_ind = 25
         neurs_ind = 25
         feat_ind = 4
-        print(n_feats[feat_ind], total_pwrs[pwr_ind])
         total_snrs = np.sqrt(total_pwrs)
         
-        # print('nf', n_feats[feat_ind])
         var = 1/6
         use_regions = (2,)
         td_thresh = .1
         region_list = []
         min_maps = []
 
-        print(mis_prob[1].shape)
         linestyles = ('solid', 'solid')
         ov_thresh = 4
         for k, mse_r in mse_dist.items():            
@@ -714,7 +701,6 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
             for i, ov in enumerate(overlaps):
                 total_rep_feats = n_feats[feat_ind] + (k - 1)*ov
                 region_feats = am._split_integer(total_rep_feats, k)
-                print(region_feats)
                 smaller_feat = min(region_feats)
                 rep_feats.append(smaller_feat)
                 mse_i = 2*mse_r*n_feats[feat_ind]
@@ -752,8 +738,9 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                 td_map = total_mse[k][:, feat_ind, i, :]
                 td_maps.append(td_map)
             full_map_k = np.stack(td_maps, axis=0)
-            min_map_k = full_map_k[0] # np.min(full_map_k, axis=0)
             min_map_k = np.nanmin(full_map_k, axis=0)
+            print(np.nanargmin(full_map_k[:, 20:, 20:], axis=0))
+            print(overlaps)
             
             min_maps.append(min_map_k)
             region_list.append(k)
@@ -822,15 +809,27 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         gpl.add_hlines(total_units[neurs_ind], map_ax, alpha=.5)
         for i, (nr, mse_nr) in enumerate(mse_dist.items()):
             min_ovs = np.argmin(total_mse[nr], axis=2, keepdims=True)
+            col = colors[i]
             
+            tot_mo = np.squeeze(np.take_along_axis(total_mse[nr], min_ovs, 2))
+            tot_pwr = tot_mo[neurs_ind, feat_ind]
+            tot_pwr_mask = ~np.isnan(tot_pwr)
+            gpl.plot_trace_werr(total_snrs, tot_pwr, ax=tot_pwr_ax, color=col)
+
+            tot_nu = tot_mo[:, feat_ind, pwr_ind]
+            tot_nu = np.min(total_mse[nr][:, feat_ind, :, pwr_ind], axis=1)
+            tot_nu_mask = ~np.isnan(tot_nu)
+            gpl.plot_trace_werr(total_units, tot_nu, ax=tot_nu_ax, color=col)
+
             mse_mo = np.squeeze(np.take_along_axis(mse_nr, min_ovs, 2))
             mse_nu = mse_mo[:, feat_ind, pwr_ind]            
-            col = colors[i]
-            l = gpl.plot_trace_werr(total_units, nr*mse_nu, ax=mse_nu_ax,
+            l = gpl.plot_trace_werr(total_units[tot_nu_mask],
+                                    nr*mse_nu[tot_nu_mask], ax=mse_nu_ax,
                                     color=col)
             col = l[0].get_color()
             mse_pwr = mse_mo[neurs_ind, feat_ind]  
-            gpl.plot_trace_werr(total_snrs, nr*mse_pwr, ax=mse_pwr_ax,
+            gpl.plot_trace_werr(total_snrs[tot_pwr_mask],
+                                nr*mse_pwr[tot_pwr_mask], ax=mse_pwr_ax,
                                 color=col)
 
             if nr > 1:
@@ -838,31 +837,14 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
                 ae_nr[ae_nr > 1] = 1
                 ae_mo = np.squeeze(np.take_along_axis(ae_nr, min_ovs, 2))
                 ae_nu = ae_mo[:, feat_ind, pwr_ind]
-                gpl.plot_trace_werr(total_units, ae_nu*nr, ax=ae_nu_ax,
+                gpl.plot_trace_werr(total_units[tot_nu_mask],
+                                    ae_nu[tot_nu_mask]*nr, ax=ae_nu_ax,
                                     color=col)
                 ae_pwr = ae_mo[neurs_ind, feat_ind]
-                gpl.plot_trace_werr(total_snrs, ae_pwr*nr, ax=ae_pwr_ax,
+                gpl.plot_trace_werr(total_snrs[tot_pwr_mask],
+                                    ae_pwr[tot_pwr_mask]*nr, ax=ae_pwr_ax,
                                     color=col)
 
-            mp_mo = np.squeeze(np.take_along_axis(mis_prob[nr], min_ovs, 2))
-            mp_pwr = mp_mo[neurs_ind, feat_ind]
-            thr_pwr = list(mp[0] for mp in mp_pwr)
-            gpl.plot_trace_werr(total_snrs, thr_pwr, ax=thr_pwr_ax, color=col,
-                                log_y=True)
-
-            mp_nu = mp_mo[:, feat_ind, pwr_ind]
-            thr_nu = list(mp[0] for mp in mp_nu)
-            gpl.plot_trace_werr(total_units, thr_nu, ax=thr_nu_ax, color=col,
-                                log_y=True)
-
-            tot_mo = np.squeeze(np.take_along_axis(total_mse[nr], min_ovs, 2))
-            tot_pwr = tot_mo[neurs_ind, feat_ind]
-            gpl.plot_trace_werr(total_snrs, tot_pwr, ax=tot_pwr_ax, color=col)
-
-            tot_nu = tot_mo[:, feat_ind, pwr_ind]
-            tot_nu = np.min(total_mse[nr][:, feat_ind, :, pwr_ind], axis=1)
-            
-            gpl.plot_trace_werr(total_units, tot_nu, ax=tot_nu_ax, color=col)
                 
         ae_pwr_ax.set_xscale('log')
         ae_nu_ax.set_xscale('log')
@@ -882,8 +864,6 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         mse_pwr_ax.set_ylabel('local MSE')
         ae_nu_ax.set_ylabel('AE rate')
 
-        thr_pwr_ax.set_ylabel('threshold\nerror rate')
-        
         tot_pwr_ax.set_ylabel('total MSE')
         tot_nu_ax.set_ylabel('total MSE')
         

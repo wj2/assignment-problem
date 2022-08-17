@@ -12,7 +12,7 @@ import joblib as jl
 import general.utility as u
 import general.rf_models as rfm
 
-def _split_integer(num, parts):
+def split_integer(num, parts):
     """ taken from 
     https://stackoverflow.com/questions/55465884/
     how-to-divide-an-unknown-integer-into-a-given-
@@ -28,7 +28,7 @@ def _compute_assignment_distortion(n_feats, overlaps, num_regions):
     for (i, j) in u.make_array_ind_iterator(left_out.shape):
         nf = n_feats[i]
         overlap = overlaps[j]
-        left_out[i, j] = nf - max(_split_integer(nf + overlap, num_regions))
+        left_out[i, j] = nf - max(split_integer(nf + overlap, num_regions))
     left_out[left_out <= 0] = 0
     ws = left_out/6
     # ws[ws <= 0] = 0
@@ -211,7 +211,7 @@ def mse_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
     total_err = {}
     for nr in n_regions:
         dims_to_rep = total_dims + overlap*(nr - 1)
-        dims_per_region = _split_integer(dims_to_rep, nr)
+        dims_per_region = split_integer(dims_to_rep, nr)
         if np.all(np.array(dims_per_region) > overlap):
             distorts[nr] = np.zeros(nr)
             ae_distorts[nr] = np.zeros(nr)
@@ -286,7 +286,7 @@ def fi_tradeoff(total_units, total_dims, n_regions=(1, 2), overlap=1,
     ae_rates = {}
     for nr in n_regions:
         dims_to_rep = total_dims + overlap*(nr - 1)
-        dims_per_region = _split_integer(dims_to_rep, nr)
+        dims_per_region = split_integer(dims_to_rep, nr)
         if np.all(np.array(dims_per_region) > overlap):
             distorts[nr] = np.zeros(nr)
             for i, dpr_i in enumerate(dims_per_region):
@@ -431,19 +431,31 @@ def calculate_distance(ests):
         dist = dist + np.sum(sub_est)
     return dist
 
+def make_dist_matrix(ests, include_nulls=False):
+    s, c, pops = ests.shape
+    dist_mat = np.zeros((s, s))
+    for comb in it.product(range(s), range(s)):
+        d_sq = np.sum((ests[comb[0], :, 0] - ests[comb[1], :, 1])**2)
+        dist_mat[comb] = d_sq
+    return dist_mat
+
 def assign_estimates_2pop(ests):
     s, c, pops = ests.shape
     assert pops == 2
     baseline = calculate_distance(ests)
     perturbs = list(it.combinations(range(s), 2))
     assign_dists = np.zeros(len(perturbs))
+    # print(ests.shape)
     shuff_ests = np.zeros_like(ests)
+    dm = make_dist_matrix(ests)
+    rows, cols = sio.linear_sum_assignment(dm)
+    corr = np.all(rows == cols)
     for i, p in enumerate(perturbs):
         shuff_ests[:, :, :] = ests[:, :, :]
         shuff_ests[p[1], :, 0] = ests[p[0], :, 0]
         shuff_ests[p[0], :, 0] = ests[p[1], :, 0]
         assign_dists[i] = calculate_distance(shuff_ests)
-    return assign_dists, baseline
+    return assign_dists, baseline, corr
 
 def estimate_ae_full(p, n_stim, delta, ds, c, n_ests=1000):
     pop_ests = dxdy_from_dsdelt(ds, delta)
@@ -451,11 +463,13 @@ def estimate_ae_full(p, n_stim, delta, ds, c, n_ests=1000):
 
 def estimate_assignment_error(p, s, pop_ests, c=1, n=500):
     err = np.zeros(n)
+    err_ap = np.zeros_like(err)
     for i in range(n):
         est = simulate_estimates(p, s, pop_ests, c=c)
-        ad, base = assign_estimates_2pop(est)
+        ad, base, corr = assign_estimates_2pop(est)
         err[i] = np.any(ad < base)
-    return err
+        err_ap[i] = corr
+    return err, err_ap
 
 def estimate_ae_sr_range(s, srs, n_pops=2, n=500, p=100, boot=True, c=1):
     errs = np.zeros((n, len(srs)))
@@ -774,6 +788,13 @@ def ae_sample(esses, d1, d2, overlapping_d, p=1, n_samples=10**7, **kwargs):
     for i, s in enumerate(esses):
         errs[i] = ss.comb(s, 2)*pes
     return errs        
+
+
+def dist_ae_prob(x, d1_i, d2_i, n_stim=2):
+    v2 = sts.norm(x, np.sqrt(2*d1_i)).cdf(0)
+    v3 = sts.norm(x, np.sqrt(2*d2_i)).cdf(0)
+    v = (v2 + v3 - 2*v2*v3)
+    return ss.comb(n_stim, 2)*v
 
 def ae_integ(esses, d1, d2, p=1, integ_start=0, integ_end=None, dist_pdf=None,
              err_thr=.01, assert_=False, use_factor=True):

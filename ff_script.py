@@ -55,8 +55,10 @@ if __name__ == '__main__':
     s1, s2 = am.split_integer(args.input_dim - args.common_dims, 2)
     all_dims = np.arange(args.input_dim, dtype=int)
     cds = all_dims[:args.common_dims]
-    uds1 = all_dims[args.common_dims:args.common_dims+s1]
-    uds2 = all_dims[-s2:]
+    uds1 = np.concatenate((cds, all_dims[args.common_dims:args.common_dims+s1]))
+    uds2 = np.concatenate((cds, all_dims[-s2:]))
+
+    args.inds = (cds, uds1, uds2)
 
     recon_inds = all_dims[-s1+s2:]
 

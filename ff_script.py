@@ -58,10 +58,9 @@ if __name__ == '__main__':
     uds1 = np.concatenate((cds, all_dims[args.common_dims:args.common_dims+s1]))
     uds2 = np.concatenate((cds, all_dims[-s2:]))
 
-    args.inds = (cds, uds1, uds2)
-
-    recon_inds = all_dims[-s1+s2:]
-
+    recon_inds = all_dims[-(s1+s2):]
+    args.inds = (cds, uds1, uds2, recon_inds)
+    
     dists = np.linspace(*args.dist_args[:2], int(args.dist_args[2]))
     n_est = args.err_n_est
     n_stim = args.n_stim

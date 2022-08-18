@@ -46,6 +46,9 @@ if __name__ == '__main__':
         config_dict = pickle.load(open(args.config_path, 'rb'))
         args = u.merge_params_dict(args, config_dict)
 
+    if args.hidden_units is not None:
+        args.hidden_units = tuple(args.hidden_units)
+
     p = 1
     input_dists = (sts.uniform(0, p),)*args.input_dim
     

@@ -552,9 +552,13 @@ class RandomPopsModel(IntegrationModel):
         # return out + self.out_bias
         return out
 
-    def get_theoretical_ae(self, ds, n_stim=2):
-        mse_f1 = self.f1_code.get_predicted_mse()
-        mse_f2 = self.f2_code.get_predicted_mse()
+    def get_theoretical_ae(self, ds, n_stim=2, use_full=True):
+        if use_full:
+            mse_f1 = self.f1_code.get_predicted_mse()
+            mse_f2 = self.f2_code.get_predicted_mse()
+        else:
+            mse_f1 = 1/self.f1_code.get_predicted_fi()
+            mse_f2 = 1/self.f2_code.get_predicted_fi()
         
         ae_rate = am.dist_ae_prob(ds, mse_f1, mse_f2, n_stim=n_stim)
         return ae_rate

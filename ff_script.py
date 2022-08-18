@@ -67,7 +67,8 @@ if __name__ == '__main__':
     noise_mag = 0
 
     m_rates = {ns:np.zeros((args.n_reps, len(dists), n_est)) for ns in n_stim}
-    t_rates = {}
+    t_full_rates = {}
+    t_fi_rates = {}
 
     for i in range(args.n_reps):
         m = ff.RandomPopsModel(args.in_out_units, args.in_out_units,
@@ -85,10 +86,14 @@ if __name__ == '__main__':
         for ns in n_stim:
             m_rates[ns][i] = m.estimate_ae_rate_dists(ns, dists, noise_mag,
                                                       n_est=n_est)
-            t_rates[ns] = m.get_theoretical_ae(dists, n_stim=ns)
+            t_full_rates[ns] = m.get_theoretical_ae(dists, n_stim=ns)
+            t_fi_rates[ns] = m.get_theoretical_ae(dists, n_stim=ns,
+                                                  use_full=False)
     
 
     args.date = datetime.now()
     fname = args.output_file.format(args.date)
     fname = fname.replace(' ', '_')
-    pickle.dump((vars(args), dists, m_rates, t_rates), open(fname, 'wb'))
+    to_save = (vars(args), dists, m_rates, t_full_rates, t_fi_rates)
+    pickle.dump(to_save,
+                open(fname, 'wb'))

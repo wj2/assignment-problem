@@ -394,7 +394,7 @@ def fixed_distance_errors(d, dx, dy, n_ests=1000, p=100, c=1, boot=False):
     pop_ests = np.array((dx, dy))
     for i in range(n_ests):
         est = simulate_estimates(p, 2, pop_ests, c=c, fixed_dist=d)
-        ad, base = assign_estimates_2pop(est)
+        ad, base, _ = assign_estimates_2pop(est)
         err[i] = np.any(ad < base)
     if boot:
         err = u.bootstrap_on_axis(err, u.mean_axis0, axis=0, n=n_ests)
@@ -476,7 +476,7 @@ def estimate_ae_sr_range(s, srs, n_pops=2, n=500, p=100, boot=True, c=1):
     for i, sr in enumerate(srs):
         pop_est = (p/sr)**2
         pop_ests = (pop_est,)*n_pops
-        errs[:, i] = estimate_assignment_error(p, s, pop_ests, n=n, c=c)
+        errs[:, i], _ = estimate_assignment_error(p, s, pop_ests, n=n, c=c)
     if boot:
         errs = u.bootstrap_on_axis(errs, u.mean_axis0, axis=0, n=n)
     return errs

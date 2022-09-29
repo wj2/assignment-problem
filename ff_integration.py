@@ -98,16 +98,20 @@ class IntegrationModel:
         if add_noise:
             reps = self._add_noise_simple(reps, self.rep_noise)
         return reps
+
+    def generate_input_output_pairs(self, *args, **kwargs):
+        return self._generate_input_output_pairs(*args, **kwargs)
     
     def _generate_input_output_pairs(self, n_gen, n_stim, ret_indiv=False,
-                                     inp_noise_mag=0, set_dists=None):
+                                     inp_noise_mag=0, set_dists=None,
+                                     no_noise=False):
         n_gen = int(n_gen)
         inp = self._generate_input(n_gen, n_stim, set_dists=set_dists)
         f1, f2, r = self._section_input(inp)
         f1, f2 = self._add_noise((f1, f2), inp_noise_mag)
 
-        resp1_i = self.get_resp(f1, self.resp_f1)
-        resp2_i = self.get_resp(f2, self.resp_f2)
+        resp1_i = self.get_resp(f1, self.resp_f1, add_noise=not no_noise)
+        resp2_i = self.get_resp(f2, self.resp_f2, add_noise=not no_noise)
         inp_int = np.swapaxes(inp, 0, 1)
         integ_targ = self.get_resp(inp_int, self.resp_integ, add_noise=False)
         recon_targ = self.get_resp(r, self.resp_out, add_noise=False)

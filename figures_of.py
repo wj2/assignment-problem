@@ -477,20 +477,26 @@ def plot_transition(total_dims, total_pwrs, total_units, nrs=(1, 2, 3),
 def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
     setup()
     if gen_panels is None:
-        gen_panels = ('a', 'bcd',)
+        gen_panels = ('a', 'bcd', 'wid', 'red')
     if data is None:
         data = {}    
 
-    fsize = (6.5, 1.5)
+    fsize = (6, 5)
     f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
-    out = pu.make_mxn_gridspec(gs, 1, 4, 0, 100, 0, 100, 20, 8)
+    out_upper = pu.make_mxn_gridspec(gs, 1, 3, 0, 25, 0, 100, 20, 10)
+    out_lower = pu.make_mxn_gridspec(gs, 2, 2, 36, 100, 10, 90, 10, 15)
 
-    schem_ax = f.add_subplot(out[0, 0])
-    hist_ax = f.add_subplot(out[0, 1])
-    pwr_ax = f.add_subplot(out[0, 2])
-    nu_ax = f.add_subplot(out[0, 3], sharey=pwr_ax)
+    schem_ax = f.add_subplot(out_upper[0, 0])
+    hist_ax = f.add_subplot(out_upper[0, 1])
+    wid_ax = f.add_subplot(out_upper[0, 2])
+    
+    pwr_ax = f.add_subplot(out_lower[0, 0])
+    nu_ax = f.add_subplot(out_lower[0, 1], sharey=pwr_ax)
+
+    red_mse_ax = f.add_subplot(out_lower[1, 0])
+    red_ae_ax = f.add_subplot(out_lower[1, 1], sharex=red_mse_ax)
 
     if data.get('a') is None and 'a' in gen_panels:
         rf_distrs = (sts.uniform(0, 1),)*2
@@ -509,7 +515,33 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
         rf_cents, rf_wids = data['a']
         _plot_rfs(rf_cents, rf_wids, schem_ax, color=rf_colors)
         schem_ax.set_aspect('equal')
-        
+
+    local_col = np.array((112, 108, 97))/255
+    thr_col = np.array((148, 28, 47))/255 + .2
+    d1_color = np.array((192, 214, 223))/255
+    d2_color = np.array((74, 111, 165))/255
+    comp_alpha = .5
+    if data.get('wid') is None and 'wid' in gen_panels:
+        snr = 5
+        snr2 = 6
+        n_units = 1000
+        dim = 2
+        out1 = rfm.mse_w_range(snr**2, n_units, dim, ret_components=True)
+        out2 = rfm.mse_w_range(snr2**2, n_units, dim, ret_components=True)
+        data['wid'] = (out1, out2)
+
+    if 'wid' in gen_panels:
+        mse, l_mse, nl_mse, nl_prob, wid = data['wid'][0]
+        wid_ax.plot(wid, (1 - nl_prob)*l_mse, color=local_col,
+                    alpha=comp_alpha, label='local')
+        wid_ax.plot(wid, nl_prob*nl_mse, color=thr_col, alpha=comp_alpha,
+                    label='threshold')
+        wid_ax.plot(wid, mse, color=d2_color, label='combined')
+        wid_ax.set_yscale('log')
+        gpl.clean_plot(wid_ax, 0)
+        wid_ax.legend(frameon=False)
+        wid_ax.set_xlabel('RF width')
+        wid_ax.set_ylabel('MSE')
 
     folder = 'assignment/code_param_sweep'
     jobid = '2791816'
@@ -527,9 +559,6 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
         out_nus = out['nus_sweep']
         errs = out_pwr[0][hist_pwr_ind, 0, hist_dim_ind]
         bins = np.logspace(-8, 0, 30)
-
-        local_col = np.array((112, 108, 97))/255
-        thr_col = np.array((148, 28, 47))/255 + .2
         
         # gpl.add_vlines(out_pwr[3][hist_pwr_ind, 0, hist_dim_ind],
         #                hist_ax)
@@ -541,8 +570,6 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
         hist_ax.set_xscale('log')
         hist_ax.legend(frameon=False)
 
-        d1_color = np.array((192, 214, 223))/255
-        d2_color = np.array((74, 111, 165))/255
         colors = (d1_color, d2_color)
         for i, dim in enumerate(dims):
             l = gpl.plot_trace_werr(snr_range, out_pwr[1][:, 0, i].T, ax=pwr_ax,
@@ -557,7 +584,7 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
             
 
             gpl.plot_trace_werr(nu_range, out_nus[1][0, :, i].T, ax=nu_ax,
-                                label='D = {}'.format(dim), color=col,
+                                label='K = {}'.format(dim), color=col,
                                 conf95=True, log_x=True, log_y=True )
             nu_ax.plot(nu_range, out_nus[2][0, :, i], color='k',
                        linestyle='dashed', linewidth=1.5)
@@ -573,6 +600,68 @@ def figure_fi_intro(basefolder=bf, gen_panels=None, data=None):
         pwr_ax.set_ylabel('total MSE')
         pwr_ax.set_xlabel('SNR')
         nu_ax.set_xlabel('N units')
+
+    cs = (1, 2, 3)
+    if data.get('red') is None and 'red' in gen_panels:
+        snrs = np.linspace(5, 10, 20)
+        pwrs = snrs**2
+        dims = 4
+        n_units = 10000
+        traces = {}
+        for i, c in enumerate(cs):
+            k1, k2 = am.split_integer(dims + c, 2)
+            mse1 = np.array(list(rfm.min_mse_vec(pwr_i, n_units, k1,
+                                                 ret_components=True)[1]
+                                 for pwr_i in pwrs))
+            mse2 = np.array(list(rfm.min_mse_vec(pwr_i, n_units, k2,
+                                                 ret_components=True)[1]
+                                 for pwr_i in pwrs))
+            red = (c/2)*np.log(1/(mse1 + mse2))
+            ae_r = np.array(list(
+                am.integrate_assignment_error((2,),
+                                              mse1[i:i+1],
+                                              mse2[i:i+1],
+                                              c, p=1)
+                for i in range(len(mse1))
+                                 ))
+            traces[c] = (mse1, mse2, k1, k2, red, snrs, ae_r)
+        data['red'] = traces
+
+    if 'red' in gen_panels:
+        traces = data['red']
+        for i, c in enumerate(cs):
+            cmap = gpl.make_linear_cmap(gps.nms_colors[i])
+            mse1, mse2, k1, k2, red, snr, ae_r = traces[c]
+            mse_avg = np.mean([mse1, mse2], axis=0)
+            ae_r = np.squeeze(ae_r)
+            if i == 0:
+                mse_conn = np.expand_dims(mse_avg, 0)
+                ae_conn = np.expand_dims(ae_r, 0)
+                red_conn = np.expand_dims(red, 0)
+            else:
+                mse_conn = np.concatenate((mse_conn, np.expand_dims(mse_avg, 0)),
+                                          axis=0)
+                ae_conn = np.concatenate((ae_conn, np.expand_dims(ae_r, 0)),
+                                          axis=0)
+                red_conn = np.concatenate((red_conn, np.expand_dims(red, 0)),
+                                          axis=0)
+
+            gpl.plot_trace_werr(red, mse_avg, ax=red_mse_ax, log_y=True)
+            gpl.plot_trace_werr(red, ae_r, ax=red_ae_ax, log_y=True,
+                                label='C = {}'.format(c))
+        lw = .8
+        l_col = (.8, .8, .8)
+        red_mse_ax.plot(red_conn[:, ::2], mse_conn[:, ::2],
+                        color=l_col, zorder=-1,
+                        linewidth=lw)
+        red_ae_ax.plot(red_conn[:, (0, -1)], ae_conn[:, (0, -1)],
+                       color=l_col, zorder=-1,
+                       linewidth=lw)
+        red_ae_ax.set_xlabel('redundancy (nats)')
+        red_mse_ax.set_xlabel('redundancy (nats)')
+        red_ae_ax.set_ylabel('assignment error rate')
+        red_mse_ax.set_ylabel('local MSE')
+        
         
     fname = os.path.join(bf, 'fig_fi_intro-py.svg')
     f.savefig(fname, bbox_inches='tight', transparent=True)
@@ -880,6 +969,168 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     fname = os.path.join(bf, 'fig_fi-py.svg')
     f.savefig(fname, bbox_inches='tight', transparent=True)
     return data
+
+def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
+    setup()
+    if gen_panels is None:
+        gen_panels = ('abc', 'd', 'e')
+    if data is None:
+        data = {}
+
+    fsize = (4.5, 4.5)
+    f = plt.figure(figsize=fsize)
+    gs = f.add_gridspec(100, 100)
+
+    r1_gs = gs[:20, :33]
+    r2_gs = gs[30:50, :33]
+    integ_gs = gs[5:45, 25:65]
+    recon_gs = gs[15:35, 70:]
+
+    ae_rate_gs = gs[60:, 60:]
+    wm_gs = gs[60:, :40]
+    
+    if (('abc' in gen_panels or 'd' in gen_panels)
+        and data.get('abcde') is None):
+        p = 1
+
+        input_dists = (sts.uniform(0, p), sts.uniform(0, p),
+                       sts.uniform(0, p))
+        f1_inds = (1, 0)
+        f2_inds = (2, 0)
+        recon_inds = (1, 2)
+        integ_inds = (0, 1, 2)
+
+        n_units = 400
+        integ_units = 2000
+        n_epochs = 200
+        n_samples = 50000
+        hu_units = None 
+
+        model = ff.RandomPopsModel(n_units, n_units, n_units, input_dists, 
+                                   f1_inds, f2_inds, recon_inds, 
+                                   integ_units=integ_units, pop_func='random',
+                                   connectivity_gen='learn_nonlinear_piece',
+                                   epochs=n_epochs, verbose=True,
+                                   hu_units=hu_units,
+                                   n_samples=n_samples)
+        data['abcde'] = (f1_inds, f2_inds, integ_inds, recon_inds, model)
+
+    r1_ax = f.add_subplot(r1_gs, aspect='equal')
+    r2_ax = f.add_subplot(r2_gs, aspect='equal')
+    integ_ax = f.add_subplot(integ_gs, projection='3d')
+    recon_ax = f.add_subplot(recon_gs, aspect='equal')
+    
+    if 'abc' in gen_panels:
+        f1_inds, f2_inds, integ_inds, recon_inds, model = data['abcde']
+        common_dist = .3
+        unique_dist = .5
+        dists = ((0, common_dist), 
+                 (1, unique_dist), 
+                 (2, unique_dist))
+        n_stim = 2
+        out = model.generate_input_output_pairs(2, n_stim, ret_indiv=True,
+                                                set_dists=dists,
+                                                no_noise=True)
+        _, integ_targ, recon_targ, _, r1_inp, r2_inp = out
+        rfm.visualize_random_rf_responses(r1_inp[0], model.ms_f1, ax=r1_ax)
+        rfm.visualize_random_rf_responses(r2_inp[0], model.ms_f2, ax=r2_ax)
+        rfm.visualize_random_rf_responses(integ_targ[0], model.ms_integ,
+                                          ax=integ_ax, vis_dims=integ_inds)
+        rfm.visualize_random_rf_responses(recon_targ[0], model.ms_out,
+                                          ax=recon_ax)
+        gpl.clean_plot(r1_ax, 0, horiz=False)
+        gpl.clean_plot_bottom(r1_ax)
+        gpl.clean_plot(r2_ax, 1, horiz=False)
+        r1_ax.set_ylabel('unique feature 1')
+        r2_ax.set_xlabel('common feature')
+        r2_ax.set_ylabel('unique feature 2')
+        r2_ax.set_xticks([0, .5, 1])
+        r2_ax.set_yticks([0, .5, 1])
+        r1_ax.set_yticks([0, .5, 1])
+
+        integ_ax.set_xlabel('common feature')
+        integ_ax.set_ylabel('unique feature 1')
+        integ_ax.set_zlabel('unique feature 2')
+        gpl.make_3d_bars(integ_ax, bar_len=.5)
+        
+        gpl.clean_plot(recon_ax, 0)
+        recon_ax.set_xticks([0, .5, 1])
+        recon_ax.set_yticks([0, .5, 1])
+        recon_ax.set_xlabel('unique feature 1')
+        recon_ax.set_ylabel('unique feature 2')
+
+    wm_ax = f.add_subplot(wm_gs)
+    if 'd' in gen_panels:
+        n_bins = 30
+        f1_inds, _, integ_inds, _, model = data['abcde']
+        wm = model.integ_func.weights[-2]
+        f1_units = int(wm.shape[0]/2)
+        w_f1_to_integ = wm[:f1_units].numpy().T
+        other_ind = list(set(integ_inds).difference(f1_inds))
+        mf1, mint = model.ms_f1, model.ms_integ[:, f1_inds]
+        dists = np.sqrt(np.sum((mf1[:, np.newaxis] - mint[np.newaxis, :])**2, axis=2).T)
+        other_ms = np.tile(model.ms_integ[:, other_ind], dists.shape[1])
+        dists = np.reshape(dists, (-1, 1))
+        other_ms = np.reshape(other_ms, (-1, 1))
+        ws = np.reshape(w_f1_to_integ, (-1, 1))
+
+        cm = plt.get_cmap('Blues')
+        color = cm(.6)
+        gpl.plot_scatter_average(dists, ws, n_bins=n_bins, ax=wm_ax,
+                                 use_max=1, color=color) 
+        gpl.add_vlines(model.wid_f1, wm_ax)
+        gpl.add_hlines(0, wm_ax)
+       
+        gpl.clean_plot(wm_ax, 0)
+        wm_ax.set_xlabel('distance between RF centers')
+        wm_ax.set_ylabel('average weight')
+        
+    aer_ax = f.add_subplot(ae_rate_gs)
+    if 'e' in gen_panels:
+        n_stim = 2
+        cmap = 'hsv'
+        cm = plt.get_cmap(cmap)
+        fls = (
+            ('end-to-end learning with no integration layer',
+             'ff_0_3161525_2022-08-18_17:18:39.816879.pkl'),
+            ('end-to-end learning', 'ff_0_3161522_2022-08-18_19:15:21.183781.pkl'),
+            ('end-to-end learning with hidden layers',
+             'ff_0_3161524_2022-08-18_18:13:32.687326.pkl'),
+            ('integration learning', 'ff_0_3161527_2022-08-18_17:11:46.993088.pkl'),
+            ('integration learning with hidden layers',
+             'ff_0_3161526_2022-08-18_17:13:17.256104.pkl'),
+        )
+        colors = (
+            (150, 20, 200),
+            (60, 75, 240),
+            (65, 173, 250),
+            (255, 167, 69),
+            (255, 84, 100),
+        )
+        colors = np.array(colors)/255
+        for i, (label, fl) in enumerate(fls):
+            out = pickle.load(open('assignment/ff_models/{}'.format(fl), 'rb'))
+            params, dists, m_rates, t_rates, t_fi_rates = out
+
+            mr = np.mean(m_rates[n_stim], axis=2)
+            tr = t_rates[n_stim]
+
+            if i == 0:
+                aer_ax.plot(dists, tr, 'k', linestyle='dashed',
+                            label='minimal assignment error rate')
+
+            color = colors[i]
+            aer_ax.plot(dists, mr[0], linewidth=1, color=color,
+                        label=label)
+            aer_ax.plot(dists, mr[1:].T, linewidth=1, color=color)
+            aer_ax.legend(frameon=False)
+            gpl.clean_plot(aer_ax, 0)
+        aer_ax.set_xlabel('distance in common feature')
+        aer_ax.set_ylabel('assignment error rate')
+    fname = os.path.join(bf, 'fig_integ-py.svg')
+    f.savefig(fname, bbox_inches='tight', transparent=True)
+    return data
+
 
 def figure6_alt(basefolder=bf, mp1=None, mp2=None, mp3=None, gen_panels=None,
                 data=None, experiment_key='Zhang & Luck 2008'): 

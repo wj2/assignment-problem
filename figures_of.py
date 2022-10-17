@@ -977,14 +977,17 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
     if data is None:
         data = {}
 
-    fsize = (4.5, 4.5)
+    fsize = (6.5, 4.5)
     f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
-    r1_gs = gs[:20, :33]
-    r2_gs = gs[30:50, :33]
-    integ_gs = gs[5:45, 25:65]
-    recon_gs = gs[15:35, 70:]
+    r1_gs = gs[:20, :20]
+    r2_gs = gs[30:50, :20]
+    integ_gs = gs[5:45, 20:50]
+    recon1_gs = gs[:20, 50:70]
+    recon2_gs = gs[30:50, 50:70]
+    recon1_eg_gs = gs[:20, 80:]
+    recon2_eg_gs = gs[30:50, 80:]
 
     ae_rate_gs = gs[60:, 60:]
     wm_gs = gs[60:, :40]
@@ -1004,7 +1007,7 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
         integ_units = 2000
         n_epochs = 200
         n_samples = 50000
-        hu_units = None 
+        hu_units = (800,) 
 
         model = ff.RandomPopsModel(n_units, n_units, n_units, input_dists, 
                                    f1_inds, f2_inds, recon_inds, 
@@ -1018,26 +1021,62 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
     r1_ax = f.add_subplot(r1_gs, aspect='equal')
     r2_ax = f.add_subplot(r2_gs, aspect='equal')
     integ_ax = f.add_subplot(integ_gs, projection='3d')
-    recon_ax = f.add_subplot(recon_gs, aspect='equal')
+    recon1_ax = f.add_subplot(recon1_gs, aspect='equal')
+    recon2_ax = f.add_subplot(recon2_gs, aspect='equal')
+    recon1_eg_ax = f.add_subplot(recon1_eg_gs, aspect='equal')
+    recon2_eg_ax = f.add_subplot(recon2_eg_gs, aspect='equal')
     
     if 'abc' in gen_panels:
         f1_inds, f2_inds, integ_inds, recon_inds, model = data['abcde']
-        common_dist = .3
+        common_dist = .2
         unique_dist = .5
         dists = ((0, common_dist), 
                  (1, unique_dist), 
                  (2, unique_dist))
         n_stim = 2
-        out = model.generate_input_output_pairs(2, n_stim, ret_indiv=True,
+        n_gen = 1000
+        out = model.generate_input_output_pairs(n_gen, n_stim, ret_indiv=True,
                                                 set_dists=dists,
-                                                no_noise=True)
-        _, integ_targ, recon_targ, _, r1_inp, r2_inp = out
+                                                no_noise=False)
+        f_inp, integ_targ, recon_targ, o_inp, r1_inp, r2_inp = out
+
+        stim_ops, recon_ops = model._make_alternate_outputs(o_inp)
+
+        y_hat = model.model(f_inp)
+        y_hat = np.expand_dims(y_hat, 1)
+        
+        dists = np.sum((y_hat - recon_ops)**2, axis=-1)
+        vec = recon_ops[:, 1] - recon_ops[:, 0]
+        vec_u = u.make_unit_vector(vec)
+        vec_l = np.sqrt(np.sum(vec**2, axis=1))
+        dist_quant = np.sum((y_hat[:, 0] - recon_ops[:, 0])*vec_u, axis=1)/vec_l
+
+        eps = np.mean(dists[:, 0])
+        close_mask = dists < eps
+        
+        err_mask = np.argmin(dists, axis=1) == 0
+        print('ae rate', np.mean(err_mask))
+
+        corr_mask = np.logical_and(err_mask, close_mask[:, 0])
+        ae_mask = np.logical_and(~err_mask, close_mask[:, 1])
+
+        corr_eg_ind = np.where(corr_mask)[0][0]
+        ae_eg_ind = np.where(ae_mask)[0][0]
+
+        rfm.visualize_random_rf_responses(y_hat[corr_eg_ind, 0], model.ms_out,
+                                          ax=recon1_ax)
+        rfm.visualize_random_rf_responses(y_hat[ae_eg_ind, 0], model.ms_out,
+                                          ax=recon2_ax)
+
         rfm.visualize_random_rf_responses(r1_inp[0], model.ms_f1, ax=r1_ax)
         rfm.visualize_random_rf_responses(r2_inp[0], model.ms_f2, ax=r2_ax)
         rfm.visualize_random_rf_responses(integ_targ[0], model.ms_integ,
                                           ax=integ_ax, vis_dims=integ_inds)
-        rfm.visualize_random_rf_responses(recon_targ[0], model.ms_out,
-                                          ax=recon_ax)
+        rfm.visualize_random_rf_responses(recon_ops[corr_eg_ind, 0], model.ms_out,
+                                          ax=recon1_eg_ax)
+        rfm.visualize_random_rf_responses(recon_ops[ae_eg_ind, 1], model.ms_out,
+                                          ax=recon2_eg_ax)
+        # recon2_eg_ax.hist(dist_quant, density=True)
         gpl.clean_plot(r1_ax, 0, horiz=False)
         gpl.clean_plot_bottom(r1_ax)
         gpl.clean_plot(r2_ax, 1, horiz=False)
@@ -1053,11 +1092,11 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
         integ_ax.set_zlabel('unique feature 2')
         gpl.make_3d_bars(integ_ax, bar_len=.5)
         
-        gpl.clean_plot(recon_ax, 0)
-        recon_ax.set_xticks([0, .5, 1])
-        recon_ax.set_yticks([0, .5, 1])
-        recon_ax.set_xlabel('unique feature 1')
-        recon_ax.set_ylabel('unique feature 2')
+        # gpl.clean_plot(recon_ax, 0)
+        # recon_ax.set_xticks([0, .5, 1])
+        # recon_ax.set_yticks([0, .5, 1])
+        # recon_ax.set_xlabel('unique feature 1')
+        # recon_ax.set_ylabel('unique feature 2')
 
     wm_ax = f.add_subplot(wm_gs)
     if 'd' in gen_panels:

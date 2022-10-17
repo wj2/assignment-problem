@@ -277,26 +277,43 @@ class IntegrationModel:
                                              add_noise=False)
         return all_maps, all_recons
         
-    def _construct_network(self, inp_units, hu_ns, out_units, act_func='relu',
+    def _construct_network(self, inp_units, hu_ns, integ_units, out_units,
+                           act_func='relu',
                            activity_regularizer=None, # regularizers.L2(.001),
                            noise=0, no_output=False, **kwargs):
-        ls = []
-        ls.append(layers.InputLayer(inp_units))
+        outs = []
+        inputs_orig = keras.Input(shape=inp_units)
+        inputs = inputs_orig
+        x = inputs
         for n in hu_ns:
-            ls.append(layers.Dense(n, activation=act_func,
+            layer_i = layers.Dense(n, activation=act_func,
                                    activity_regularizer=activity_regularizer,
-                                   **kwargs))
+                                   **kwargs)
+            x = layer_i(x)
             if noise > 0:
-                ls.append(layers.GaussianNoise(noise))
-        if not no_output:
-            ls.append(layers.Dense(out_units, activation=act_func))
-        if no_output:
-            model_int = keras.Sequential(ls)
-            model_out = None
+                noise_i = layers.GaussianNoise(noise)
+                x = noise_i(x)
+        print(integ_units)
+        if integ_units > 0:
+            print('integ')
+            x = layers.Dense(integ_units, activation=act_func,
+                                 activity_regularizer=activity_regularizer,
+                                 **kwargs)(x)
+            model_int = keras.Model(inputs=inputs, outputs=x)
+            outs.append(x)
         else:
-            model_int = keras.Sequential(ls[:-1])
-            model_out = keras.Sequential(ls)
-        return model_int, model_out
+            model_int = None
+        if out_units > 0:
+            out = layers.Dense(out_units, activation=act_func,
+                               activity_regularizer=activity_regularizer,
+                               **kwargs)(x)
+            model_out = keras.Model(inputs=inputs, outputs=out)
+            outs.append(model_out(inputs))
+        else:
+            model_out = None
+        full_model = keras.Model(inputs=inputs_orig, outputs=outs)
+        
+        return model_int, model_out, full_model
 
 class RandomPopsModel(IntegrationModel):
 
@@ -453,6 +470,7 @@ class RandomPopsModel(IntegrationModel):
             use_early_stopping=True,
             n_val=10000,
             no_integ=False,
+            patience=5,
             **kwargs
     ):
         out = self._generate_input_output_pairs(n_samples, n_stim,
@@ -471,19 +489,21 @@ class RandomPopsModel(IntegrationModel):
             hu_units = layers
         else:
             hu_units = hu_units + layers
-        m_int, m_out = self._construct_network(inp.shape[1], hu_units,
-                                               recon.shape[1], **kwargs)
+        m_int, m_out, m_f = self._construct_network(inp.shape[1], hu_units,
+                                                    0,
+                                                    recon.shape[1], **kwargs)
         
         if use_early_stopping:
             cb = keras.callbacks.EarlyStopping(monitor='val_loss',
-                                             mode='min', patience=2)
+                                               mode='min', patience=patience)
             curr_cb = kwargs.get('callbacks', [])
             curr_cb.append(cb)
             kwargs['callbacks'] = curr_cb
             
-        m_out.compile(loss=loss)
-        m_out.fit(inp, recon, batch_size=batch_size, epochs=epochs,
-                  verbose=verbose, validation_data=(val_inp, val_recon))
+        m_f.compile(loss=loss)
+        m_f.fit(inp, recon, batch_size=batch_size, epochs=epochs,
+                verbose=verbose, validation_data=(val_inp, val_recon),
+                **kwargs)
         
         return m_int, m_out
 
@@ -500,6 +520,7 @@ class RandomPopsModel(IntegrationModel):
             use_early_stopping=True,
             n_val=10000,
             no_integ=False,
+            patience=3,
             **kwargs
     ):
         out = self._generate_input_output_pairs(n_samples, n_stim,
@@ -508,36 +529,29 @@ class RandomPopsModel(IntegrationModel):
 
         out = self._generate_input_output_pairs(n_val, n_stim,
                                                 ret_indiv=True)        
-        val_inp, val_integ, _, _, _, _ = out
+        val_inp, val_integ, val_recon, _, _, _ = out
 
-        if hu_units is None:
-            hu_units = (integ.shape[1],)
-        else:
-            hu_units = hu_units + (integ.shape[1],)        
-        m_int, _ = self._construct_network(inp.shape[1], hu_units,
-                                           recon.shape[1], no_output=True,
-                                           **kwargs)
-        m_int.compile(loss=loss)
+        m_int, m_out, m_f = self._construct_network(inp.shape[1],
+                                                    hu_units,
+                                                    integ.shape[1],
+                                                    recon.shape[1],
+                                                    no_output=True,
+                                                    **kwargs)
+        m_f.compile(loss=loss)
         if use_early_stopping:
             cb = keras.callbacks.EarlyStopping(monitor='val_loss',
-                                             mode='min', patience=2)
+                                               mode='min', patience=patience)
             curr_cb = kwargs.get('callbacks', [])
             curr_cb.append(cb)
             kwargs['callbacks'] = curr_cb
 
-        m_int.fit(inp, integ, batch_size=batch_size, epochs=epochs,
-                  verbose=verbose, validation_data=(val_inp, val_integ),
-                  **kwargs)
+        m_f.fit(inp, (integ, recon), batch_size=batch_size, epochs=epochs,
+                verbose=verbose,
+                validation_data=(val_inp, (val_integ, val_recon)),
+                **kwargs)
 
-        m_out_int = model()
-        m_out_int.fit(m_int(inp), recon)
-        def out_func(x, thresh_out=0):
-            integ = m_int(x)
-            out = m_out_int.predict(integ)
-            out[out < thresh_out] = 0
-            return out
-        
-        return m_int, out_func
+
+        return m_int, m_out
 
     def get_integ_rep(self, inps, thresh=None, nonlin=True):
         integ_r = self.integ_func(inps)

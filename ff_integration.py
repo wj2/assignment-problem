@@ -495,7 +495,8 @@ class RandomPopsModel(IntegrationModel):
         
         if use_early_stopping:
             cb = keras.callbacks.EarlyStopping(monitor='val_loss',
-                                               mode='min', patience=patience)
+                                               mode='min', patience=patience,
+                                               restore_best_weights=True)
             curr_cb = kwargs.get('callbacks', [])
             curr_cb.append(cb)
             kwargs['callbacks'] = curr_cb
@@ -520,7 +521,7 @@ class RandomPopsModel(IntegrationModel):
             use_early_stopping=True,
             n_val=10000,
             no_integ=False,
-            patience=3,
+            patience=5,
             **kwargs
     ):
         out = self._generate_input_output_pairs(n_samples, n_stim,
@@ -540,7 +541,8 @@ class RandomPopsModel(IntegrationModel):
         m_f.compile(loss=loss)
         if use_early_stopping:
             cb = keras.callbacks.EarlyStopping(monitor='val_loss',
-                                               mode='min', patience=patience)
+                                               mode='min', patience=patience,
+                                               restore_best_weights=True)
             curr_cb = kwargs.get('callbacks', [])
             curr_cb.append(cb)
             kwargs['callbacks'] = curr_cb

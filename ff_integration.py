@@ -532,6 +532,9 @@ class RandomPopsModel(IntegrationModel):
                                                 ret_indiv=True)        
         val_inp, val_integ, val_recon, _, _, _ = out
 
+        if hu_units is None:
+            hu_units = ()
+
         m_int, m_out, m_f = self._construct_network(inp.shape[1],
                                                     hu_units,
                                                     integ.shape[1],

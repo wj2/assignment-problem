@@ -1106,8 +1106,13 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
         f1_units = int(wm.shape[0]/2)
         w_f1_to_integ = wm[:f1_units].numpy().T
         other_ind = list(set(integ_inds).difference(f1_inds))
+        
         mf1, mint = model.ms_f1, model.ms_integ[:, f1_inds]
-        dists = np.sqrt(np.sum((mf1[:, np.newaxis] - mint[np.newaxis, :])**2, axis=2).T)
+        print(mf1[:, np.newaxis].shape, mint[np.newaxis].shape)
+        print(w_f1_to_integ.shape)
+        dists = np.sqrt(np.sum((mf1[:, np.newaxis]
+                                - mint[np.newaxis, :])**2,
+                               axis=2).T)
         other_ms = np.tile(model.ms_integ[:, other_ind], dists.shape[1])
         dists = np.reshape(dists, (-1, 1))
         other_ms = np.reshape(other_ms, (-1, 1))
@@ -1115,6 +1120,7 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
 
         cm = plt.get_cmap('Blues')
         color = cm(.6)
+        print(dists.shape, ws.shape)
         gpl.plot_scatter_average(dists, ws, n_bins=n_bins, ax=wm_ax,
                                  use_max=1, color=color) 
         gpl.add_vlines(model.wid_f1, wm_ax)

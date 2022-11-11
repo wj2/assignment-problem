@@ -522,6 +522,7 @@ class RandomPopsModel(IntegrationModel):
             n_val=10000,
             no_integ=False,
             patience=5,
+            loss_ratio=.5,
             **kwargs
     ):
         out = self._generate_input_output_pairs(n_samples, n_stim,
@@ -541,7 +542,7 @@ class RandomPopsModel(IntegrationModel):
                                                     recon.shape[1],
                                                     no_output=True,
                                                     **kwargs)
-        m_f.compile(loss=loss)
+        m_f.compile(loss=loss, loss_weights=([1, loss_ratio])
         if use_early_stopping:
             cb = keras.callbacks.EarlyStopping(monitor='val_loss',
                                                mode='min', patience=patience,

@@ -1139,6 +1139,18 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
             ('integration learning with hidden layers',
              'ff_0_3161526_2022-08-18_17:13:17.256104.pkl'),
         )
+        fls = (
+            ('end-to-end learning with no integration layer',
+             'ff_0_3694637_2022-10-17_15:54:59.504448.pkl'),
+            ('end-to-end learning',
+             'ff_0_3694636_2022-10-17_16:05:39.151064.pkl'),
+            ('end-to-end learning with hidden layers',
+             'ff_0_3694635_2022-10-17_16:21:01.116523.pkl'),
+            ('integration learning with hidden layers',
+             'ff_0_3694634_2022-10-17_16:30:45.584840.pkl'),
+            # ('integration learning with hidden layers',
+            #  'ff_0_3161526_2022-08-18_17:13:17.256104.pkl'),
+        )
         colors = (
             (150, 20, 200),
             (60, 75, 240),
@@ -1150,6 +1162,8 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
         for i, (label, fl) in enumerate(fls):
             out = pickle.load(open('assignment/ff_models/{}'.format(fl), 'rb'))
             params, dists, m_rates, t_rates, t_fi_rates = out
+            print(label)
+            print(params)
 
             mr = np.mean(m_rates[n_stim], axis=2)
             tr = t_rates[n_stim]

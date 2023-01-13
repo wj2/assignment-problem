@@ -89,35 +89,53 @@ class IntegrationModel:
     def multi_stim_func(self, *args):
         return np.sum(args, axis=0)
 
-    def get_resp(self, stim, func, add_noise=True):
+    def get_resp(self, stim, func, add_noise=True, ret_noiseless=False):
         """
         input: n_stim x dim x n_trials
         returns: n_trials x n_neurs
         """
         reps = self.multi_stim_func(*(func(s_i.T) for s_i in stim))
+        out = reps
         if add_noise:
-            reps = self._add_noise_simple(reps, self.rep_noise)
-        return reps
+            noisy_reps = self._add_noise_simple(reps, self.rep_noise)
+            out = noisy_reps
+            if ret_noiseless:
+                out = (reps, noisy_reps)
+        return out
 
     def generate_input_output_pairs(self, *args, **kwargs):
         return self._generate_input_output_pairs(*args, **kwargs)
     
     def _generate_input_output_pairs(self, n_gen, n_stim, ret_indiv=False,
                                      inp_noise_mag=0, set_dists=None,
-                                     no_noise=False):
+                                     no_noise=False, ret_noiseless=False):
         n_gen = int(n_gen)
         inp = self._generate_input(n_gen, n_stim, set_dists=set_dists)
         f1, f2, r = self._section_input(inp)
         f1, f2 = self._add_noise((f1, f2), inp_noise_mag)
 
-        resp1_i = self.get_resp(f1, self.resp_f1, add_noise=not no_noise)
-        resp2_i = self.get_resp(f2, self.resp_f2, add_noise=not no_noise)
+        out = self.get_resp(f1, self.resp_f1, add_noise=True,
+                            ret_noiseless=True)
+        resp1_i, resp1_i_noisy = out
+        out = self.get_resp(f2, self.resp_f2, add_noise=True,
+                            ret_noiseless=True)
+        resp2_i, resp2_i_noisy = out
+        if no_noise:
+            use_r1 = resp1_i
+            use_r2 = resp2_i
+        else:
+            use_r1 = resp1_i_noisy
+            use_r2 = resp2_i_noisy
+
         inp_int = np.swapaxes(inp, 0, 1)
-        integ_targ = self.get_resp(inp_int, self.resp_integ, add_noise=False)
+        integ_targ = self.get_resp(inp_int, self.resp_integ,
+                                   add_noise=False)
         recon_targ = self.get_resp(r, self.resp_out, add_noise=False)
-        total_inp = np.concatenate((resp1_i, resp2_i), axis=1)
+        total_inp = np.concatenate((use_r1, use_r2), axis=1)
         if ret_indiv:
             out = total_inp, integ_targ, recon_targ, inp, resp1_i, resp2_i
+            if ret_noiseless:
+                out = out + (resp1_i_noisy, resp2_i_noisy)
         else:
             out = total_inp, integ_targ, recon_targ, inp
         return out
@@ -320,7 +338,7 @@ class RandomPopsModel(IntegrationModel):
     def __init__(self, f1_units, f2_units, out_units, input_distributions,
                  f1_inds, f2_inds, recon_inds, integ_units=1000,
                  hu_units=(500,), noise=1, inp_pwr=20, pop_func='random',
-                 connectivity_gen='learn', **kwargs):
+                 connectivity_gen='learn', f1_rd=None, f2_rd=None, **kwargs):
         self.rng = np.random.default_rng()
         self.inp_pwr = inp_pwr
         self.f1_inds = np.array(f1_inds, dtype=int)
@@ -333,7 +351,8 @@ class RandomPopsModel(IntegrationModel):
         self.f1_units = f1_units
         f1_distributions = self.input_distributions[self.f1_inds]
         f1_code = spc.Code(inp_pwr, f1_units, dims=len(f1_distributions),
-                           sigma_n=noise, pop_func=pop_func)
+                           sigma_n=noise, pop_func=pop_func,
+                           use_ramp=f1_rd)
         self.f1_code = f1_code
         self.resp_f1 = f1_code.rf
         self.ms_f1 = f1_code.rf_cents
@@ -342,7 +361,8 @@ class RandomPopsModel(IntegrationModel):
         self.f2_units = f2_units
         f2_distributions = self.input_distributions[self.f2_inds]
         f2_code = spc.Code(inp_pwr, f2_units, dims=len(f2_distributions),
-                           sigma_n=noise, pop_func=pop_func)
+                           sigma_n=noise, pop_func=pop_func,
+                           use_ramp=f2_rd)
         self.f2_code = f2_code
         self.resp_f2 = f2_code.rf
         self.ms_f2 = f2_code.rf_cents
@@ -576,14 +596,26 @@ class RandomPopsModel(IntegrationModel):
         # return out + self.out_bias
         return out
 
-    def get_theoretical_ae(self, ds, n_stim=2, use_full=True):
-        if use_full:
+    def get_theoretical_ae(self, ds, n_stim=2, use_full=True,
+                           use_emp_fi_pred_ind=None,
+                           use_emp_fi_pred=False):
+        if use_emp_fi_pred_ind is not None:
+            f1_use_ind, f2_use_ind = use_emp_fi_pred_ind
+            mse_f1 = self.f1_code.get_empirical_fi_prediction()[f1_use_ind]
+            mse_f2 = self.f2_code.get_empirical_fi_prediction()[f2_use_ind]
+        elif use_emp_fi_pred:
+            common_inds = set(self.f1_inds).intersection(self.f2_inds)
+            com_inds = np.array(list(common_inds))
+            mse_f1 = self.f1_code.get_empirical_fi_prediction()[com_inds]
+            mse_f2 = self.f2_code.get_empirical_fi_prediction()[com_inds]
+        elif use_full:
             mse_f1 = self.f1_code.get_predicted_mse()
             mse_f2 = self.f2_code.get_predicted_mse()
         else:
             mse_f1 = 1/self.f1_code.get_predicted_fi()
             mse_f2 = 1/self.f2_code.get_predicted_fi()
-        
+
+        print(mse_f1, mse_f2)
         ae_rate = am.dist_ae_prob(ds, mse_f1, mse_f2, n_stim=n_stim)
         return ae_rate
 

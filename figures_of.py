@@ -970,7 +970,8 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
     f.savefig(fname, bbox_inches='tight', transparent=True)
     return data
 
-def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
+def figure_rf_integ(basefolder=bf, gen_panels=None, data=None,
+                    resample_pair=False):
     setup()
     if gen_panels is None:
         gen_panels = ('abc', 'd', 'e')
@@ -981,13 +982,12 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
     f = plt.figure(figsize=fsize)
     gs = f.add_gridspec(100, 100)
 
-    r1_gs = gs[:20, :20]
-    r2_gs = gs[30:50, :20]
+    out = pu.make_mxn_gridspec(gs, 2, 2, 0, 50, 0, 30, 5, 10)
+    ((r1_gs, r1_n_gs), (r2_gs, r2_n_gs)) = out
     integ_gs = gs[5:45, 20:50]
-    recon1_gs = gs[:20, 50:70]
-    recon2_gs = gs[30:50, 50:70]
-    recon1_eg_gs = gs[:20, 80:]
-    recon2_eg_gs = gs[30:50, 80:]
+    
+    out = pu.make_mxn_gridspec(gs, 2, 2, 0, 50, 70, 100, 5, 10)
+    ((recon1_gs, recon1_eg_gs), (recon2_gs, recon2_eg_gs)) = out
 
     ae_rate_gs = gs[60:, 60:]
     wm_gs = gs[60:, :40]
@@ -1019,12 +1019,21 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
         data['abcde'] = (f1_inds, f2_inds, integ_inds, recon_inds, model)
 
     r1_ax = f.add_subplot(r1_gs, aspect='equal')
-    r2_ax = f.add_subplot(r2_gs, aspect='equal')
+    r2_ax = f.add_subplot(r2_gs, aspect='equal', sharex=r1_ax,
+                            sharey=r1_ax)
+    r1_n_ax = f.add_subplot(r1_n_gs, aspect='equal', sharex=r1_ax,
+                            sharey=r1_ax)
+    r2_n_ax = f.add_subplot(r2_n_gs, aspect='equal', sharex=r1_ax,
+                            sharey=r1_ax)
     integ_ax = f.add_subplot(integ_gs, projection='3d')
-    recon1_ax = f.add_subplot(recon1_gs, aspect='equal')
-    recon2_ax = f.add_subplot(recon2_gs, aspect='equal')
-    recon1_eg_ax = f.add_subplot(recon1_eg_gs, aspect='equal')
-    recon2_eg_ax = f.add_subplot(recon2_eg_gs, aspect='equal')
+    recon1_ax = f.add_subplot(recon1_gs, aspect='equal', sharex=r1_ax,
+                              sharey=r1_ax)
+    recon2_ax = f.add_subplot(recon2_gs, aspect='equal', sharex=r1_ax,
+                              sharey=r1_ax)
+    recon1_eg_ax = f.add_subplot(recon1_eg_gs, aspect='equal', sharex=r1_ax,
+                                 sharey=r1_ax)
+    recon2_eg_ax = f.add_subplot(recon2_eg_gs, aspect='equal', sharex=r1_ax,
+                                 sharey=r1_ax)
     
     if 'abc' in gen_panels:
         f1_inds, f2_inds, integ_inds, recon_inds, model = data['abcde']
@@ -1035,10 +1044,18 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
                  (2, unique_dist))
         n_stim = 2
         n_gen = 1000
-        out = model.generate_input_output_pairs(n_gen, n_stim, ret_indiv=True,
-                                                set_dists=dists,
-                                                no_noise=False)
-        f_inp, integ_targ, recon_targ, o_inp, r1_inp, r2_inp = out
+        if data.get('eg_pair') is None or resample_pair:
+            print('resampling')
+            out = model.generate_input_output_pairs(n_gen, n_stim,
+                                                    ret_indiv=True,
+                                                    set_dists=dists,
+                                                    no_noise=False,
+                                                    ret_noiseless=True)
+            data['eg_pair'] = out
+
+        out = data['eg_pair']
+        f_inp, integ_targ, recon_targ, o_inp = out[:4]
+        r1_inp, r2_inp, r1_inp_n, r2_inp_n = out[4:]
 
         stim_ops, recon_ops = model._make_alternate_outputs(o_inp)
 
@@ -1068,21 +1085,29 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
         rfm.visualize_random_rf_responses(y_hat[ae_eg_ind, 0], model.ms_out,
                                           ax=recon2_ax)
 
-        rfm.visualize_random_rf_responses(r1_inp[0], model.ms_f1, ax=r1_ax)
-        rfm.visualize_random_rf_responses(r2_inp[0], model.ms_f2, ax=r2_ax)
+        rfm.visualize_random_rf_responses(r1_inp_n[0], model.ms_f1, ax=r1_n_ax)
+        rfm.visualize_random_rf_responses(r2_inp_n[0], model.ms_f2, ax=r2_n_ax)
+        
+        rfm.visualize_random_rf_responses(r1_inp[0], model.ms_f1, ax=r1_ax,
+                                          vis_dims=(1, 0))
+        rfm.visualize_random_rf_responses(r2_inp[0], model.ms_f2, ax=r2_ax,
+                                          vis_dims=(1, 0))
+        
         rfm.visualize_random_rf_responses(integ_targ[0], model.ms_integ,
                                           ax=integ_ax, vis_dims=integ_inds)
+        integ_ax.view_init(elev=30, azim=30)
+        
         rfm.visualize_random_rf_responses(recon_ops[corr_eg_ind, 0], model.ms_out,
                                           ax=recon1_eg_ax)
         rfm.visualize_random_rf_responses(recon_ops[ae_eg_ind, 1], model.ms_out,
                                           ax=recon2_eg_ax)
-        # recon2_eg_ax.hist(dist_quant, density=True)
+        
         gpl.clean_plot(r1_ax, 0, horiz=False)
         gpl.clean_plot_bottom(r1_ax)
         gpl.clean_plot(r2_ax, 1, horiz=False)
-        r1_ax.set_ylabel('unique feature 1')
+        r1_ax.set_ylabel('unique\nfeature 1')
         r2_ax.set_xlabel('common feature')
-        r2_ax.set_ylabel('unique feature 2')
+        r2_ax.set_ylabel('unique\nfeature 2')
         r2_ax.set_xticks([0, .5, 1])
         r2_ax.set_yticks([0, .5, 1])
         r1_ax.set_yticks([0, .5, 1])
@@ -1092,11 +1117,16 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
         integ_ax.set_zlabel('unique feature 2')
         gpl.make_3d_bars(integ_ax, bar_len=.5)
         
-        # gpl.clean_plot(recon_ax, 0)
-        # recon_ax.set_xticks([0, .5, 1])
-        # recon_ax.set_yticks([0, .5, 1])
-        # recon_ax.set_xlabel('unique feature 1')
-        # recon_ax.set_ylabel('unique feature 2')
+        recon2_ax.set_xlabel('unique\nfeature 1')
+
+        recon1_ax.set_ylabel('unique\nfeature 2')
+        recon2_ax.set_ylabel('unique\nfeature 2')
+
+        recon2_eg_ax.set_xlabel('unique\nfeature 1')
+        gpl.clean_plot(recon1_eg_ax, 1)
+        gpl.clean_plot(recon1_ax, 0)
+        gpl.clean_plot(recon2_eg_ax, 1)
+        gpl.clean_plot(recon2_ax, 0)
 
     wm_ax = f.add_subplot(wm_gs)
     if 'd' in gen_panels:
@@ -1152,10 +1182,10 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
              'ff_0_3694636_2022-10-17_16:05:39.151064.pkl'),
             ('end-to-end learning with hidden layers',
              'ff_0_3694635_2022-10-17_16:21:01.116523.pkl'),
+            ('integration learning',
+             'ff_0_3938662_2022-11-11_15:18:57.679311.pkl'),
             ('integration learning with hidden layers',
-             'ff_0_3694634_2022-10-17_16:30:45.584840.pkl'),
-            # ('integration learning with hidden layers',
-            #  'ff_0_3161526_2022-08-18_17:13:17.256104.pkl'),
+             'ff_0_3938665_2022-11-11_15:41:48.066394.pkl'),
         )
         colors = (
             (150, 20, 200),
@@ -1168,8 +1198,6 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None):
         for i, (label, fl) in enumerate(fls):
             out = pickle.load(open('assignment/ff_models/{}'.format(fl), 'rb'))
             params, dists, m_rates, t_rates, t_fi_rates = out
-            print(label)
-            print(params)
 
             mr = np.mean(m_rates[n_stim], axis=2)
             tr = t_rates[n_stim]

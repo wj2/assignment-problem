@@ -95,11 +95,15 @@ if __name__ == '__main__':
             t_full_rates[ns] = m.get_theoretical_ae(dists, n_stim=ns)
             t_fi_rates[ns] = m.get_theoretical_ae(dists, n_stim=ns,
                                                   use_full=False)
+            t_emp_rates[ns] = m.get_theoretical_ae(
+                dists,
+                n_stim=ns,
+                use_full=False,
+                use_emp_fi_pred_ind=(0, 0),
+            )
     
 
     args.date = datetime.now()
-    fname = args.output_file.format(args.date)
-    fname = fname.replace(' ', '_')
-    to_save = (vars(args), dists, m_rates, t_full_rates, t_fi_rates)
-    pickle.dump(to_save,
-                open(fname, 'wb'))
+    fname = args.output_file
+    to_save = (vars(args), dists, m_rates, t_full_rates, t_fi_rates, t_emp_rates)
+    pickle.dump(to_save, open(fname, 'wb'))

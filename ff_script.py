@@ -73,6 +73,7 @@ if __name__ == '__main__':
     m_rates = {ns:np.zeros((args.n_reps, len(dists), n_est)) for ns in n_stim}
     t_full_rates = {}
     t_fi_rates = {}
+    t_emp_rates = {}
 
     for i in range(args.n_reps):
         m = ff.RandomPopsModel(args.in_out_units, args.in_out_units,

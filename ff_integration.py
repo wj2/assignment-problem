@@ -44,6 +44,26 @@ def quantify_ae_rate(m, dists=None, n_samps=100, n_stim=2,
     return out_ae, out_distortion
 
 class IntegrationModel:
+    """
+    This is an abstract class that provides methods common to the following
+    three classes. 
+
+    The one used in the paper is RandomPopsModel, which uses the populations of
+    units with randomly positioned RFs that are described in detail in the 
+    methods of that paper. I have written more complete documentation for this
+    class. 
+
+    There is also a class called RandomPopsRecurrent that inherits from 
+    RandomPopsModel, which may or may not actually work (it was an idea that 
+    I abandoned). It might be relevant to our feedback idea.
+
+    There is also a class called MLPIntegrationModel which was the earliest
+    version. This was the earliest version, and used a very simplified input. 
+    It can safely be ignored. 
+
+    If you want an example of the usage of the RandomPopsModel, there is one
+    in the ff_script.py file. 
+    """
 
     def _generate_input(self, n_gen, n_stim=1, set_dists=None):
         inp = np.zeros((len(self.input_distributions), n_stim, n_gen))
@@ -339,6 +359,67 @@ class RandomPopsModel(IntegrationModel):
                  f1_inds, f2_inds, recon_inds, integ_units=1000,
                  hu_units=(500,), noise=1, inp_pwr=20, pop_func='random',
                  connectivity_gen='learn', f1_rd=None, f2_rd=None, **kwargs):
+        """
+        An integration model that uses random RF populations as inputs, 
+        outputs, and (optionally) for the integration layer. 
+
+        Parameters
+        ----------
+        f1_units : int
+            The number of units in the first input population.
+        f2_units : int
+            The number of units in the second input population.
+        out_units : int
+            The number of units in the output population
+        input_distributions : list of distributions
+            The distributions to use for each input dimension. A distribution
+            object must implement an rvs method. The full stimulus will have
+            the number of dimensions as elements in this list. 
+            NOTE: This means correlated variables are not currently supported,
+            but this could be interesting! 
+        f1_inds : array-like of ints
+            The indices of the input dimensions to represent in the first input
+            population.
+        f2_inds : array-like of ints
+            The indices of the input dimensions to represent in the second input
+            population.
+        recon_inds : array-like of ints
+            The indices of the input dimensions to reconstruct in the output
+            population.
+        integ_units : int, optional
+            The number of units in the integrating population.
+        hu_units : list of ints, optional
+            The number of units in hidden layers inserted prior to the 
+            integration layer. 
+        noise : float, optional 
+            The variance of the noise added to the input representations.
+        inp_pwr : float, optional 
+            The population power (V, in the calculations) of the input 
+            populations.
+        pop_func : str, optional
+            A string indicating which function to use to generate the population
+            representations. The options are 'random' and 'lattice'. 
+        connectivity_gen : str, optional
+            A string indicating how to learn the connectivity in the model. The
+            options are 'naive' (which generates connectivity based on the 
+            distance between RF centers; this could probably work with more 
+            careful normalization), 'learn_linear' (which uses linear methods to 
+            learn the connectivity, 'learn_nonlinear' (which learns end-to-end
+            connectivity with backprop), 'learn_nonlinear_piece' (which learns 
+            the connectivity with backprop and optimizes both the reconstructed 
+            representation and the integrated representation)
+        f1_rd : int, optional
+            Specifies dimensions of the representation in the first input 
+            population to represent using ramp tuning. 
+        f2_rd : int, optional
+            Specifies dimensions of the representation in the second input 
+            population to represent using ramp tuning. 
+        The keyword arguments are pased to the connectivity learning procedure.
+        
+        Methods
+        -------
+        
+        """
         self.rng = np.random.default_rng()
         self.inp_pwr = inp_pwr
         self.f1_inds = np.array(f1_inds, dtype=int)
@@ -580,25 +661,49 @@ class RandomPopsModel(IntegrationModel):
         return m_int, m_out
 
     def get_integ_rep(self, inps, thresh=None, nonlin=True):
+        """
+        Get the representation of the given input samples in the integration 
+        layer.
+
+        The additional parameters are currently ignored. 
+        """
         integ_r = self.integ_func(inps)
-        # if thresh is None:
-        #     thresh = 0
-        # inps = np.expand_dims(inps, 1)
-        # integ_r = np.sum(inps*self.w_inp_full, axis=2) + self.int_bias
-        # if nonlin:
-        #     integ_r[integ_r < thresh] = 0
         return integ_r
         
     def model(self, inps, **kwargs):
-        # integ_r = np.expand_dims(self.get_integ_rep(inps, **kwargs), 1)
-        # out = np.sum(np.expand_dims(self.w_int_out, 0)*integ_r, axis=2)
+        """
+        Get the representation of the given input samples in the output
+        layer.
+
+        The additional parameters are currently ignored. 
+        """
         out = self.out_func(inps)
-        # return out + self.out_bias
         return out
 
     def get_theoretical_ae(self, ds, n_stim=2, use_full=True,
                            use_emp_fi_pred_ind=None,
                            use_emp_fi_pred=False):
+        """
+        Predict the assignment error rate from the properties of the input.
+
+        Parameters
+        ----------
+        ds : array-like
+            The between-stimuli distances to calculate the assignment error rate
+            for.
+        n_stim : int, optional
+            The number of stimuli to use. 
+        use_full : bool, optional
+            Whether to use the full predicted MSE or just the local, FI MSE. 
+        use_emp_fi_pred_ind : list of array-like of ints
+            The dimensions in the first and second population to use empirical 
+            estimation of the MSE for (otherwise will use the theoretical 
+            prediction
+            NOTE: This is only relevant to ramp dimensions since I don't have an
+            MSE theory for those codes -- though one could be developed. 
+        use_emp_fi_pred : bool, optional
+            Use empirical prediction for everything. 
+        """
         if use_emp_fi_pred_ind is not None:
             f1_use_ind, f2_use_ind = use_emp_fi_pred_ind
             mse_f1 = self.f1_code.get_empirical_fi_prediction()[f1_use_ind]

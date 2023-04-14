@@ -10,6 +10,7 @@ import numpy as np
 import arviz as av
 import pickle
 import scipy.stats as sts
+import itertools as it
 import os
 import assignment.ff_integration as ff
 import matplotlib.patheffects as pe
@@ -974,7 +975,7 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None,
                     resample_pair=False):
     setup()
     if gen_panels is None:
-        gen_panels = ('abc', 'd', 'e')
+        gen_panels = ('abc', 'd', 'e', 'f')
     if data is None:
         data = {}
 
@@ -991,6 +992,10 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None,
 
     ae_rate_gs = gs[60:, 60:]
     wm_gs = gs[60:, :40]
+
+    out = pu.make_mxn_gridspec(gs, 2, 2, 60, 100, 0, 20, 2, 5)
+    ((rf1_dx, rf1_dy), (rf2_dx, rf2_dy)) = out
+
     
     if (('abc' in gen_panels or 'd' in gen_panels)
         and data.get('abcde') is None):
@@ -1034,6 +1039,10 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None,
                                  sharey=r1_ax)
     recon2_eg_ax = f.add_subplot(recon2_eg_gs, aspect='equal', sharex=r1_ax,
                                  sharey=r1_ax)
+
+    rf_axs = np.array(list(f.add_subplot(rf_i_gs, aspect='equal')
+                           for rf_i_gs in (rf1_dx, rf1_dy, rf2_dx, rf2_dy)))
+    rf_axs = np.reshape(rf_axs, (2, 2))
     
     if 'abc' in gen_panels:
         f1_inds, f2_inds, integ_inds, recon_inds, model = data['abcde']
@@ -1128,7 +1137,7 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None,
         gpl.clean_plot(recon2_eg_ax, 1)
         gpl.clean_plot(recon2_ax, 0)
 
-    wm_ax = f.add_subplot(wm_gs)
+    # wm_ax = f.add_subplot(wm_gs)
     if 'd' in gen_panels:
         n_bins = 30
         f1_inds, _, integ_inds, _, model = data['abcde']
@@ -1187,6 +1196,19 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None,
             ('integration learning with hidden layers',
              'ff_0_3938665_2022-11-11_15:41:48.066394.pkl'),
         )
+        fls = (
+            ('end-to-end learning with no integration layer',
+             'ff_ramp_0_4426610.pkl'),
+            ('end-to-end learning',
+             'ff_ramp_0_4375499.pkl'),
+            ('end-to-end learning with hidden layer',
+             'ff_ramp_0_4375497.pkl'),
+            ('integration learning',
+             'ff_ramp_0_4375493.pkl'),
+            ('integration learning with hidden layers',
+             'ff_ramp_0_4375495.pkl'),
+        )
+
         colors = (
             (150, 20, 200),
             (60, 75, 240),
@@ -1197,7 +1219,12 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None,
         colors = np.array(colors)/255
         for i, (label, fl) in enumerate(fls):
             out = pickle.load(open('assignment/ff_models/{}'.format(fl), 'rb'))
-            params, dists, m_rates, t_rates, t_fi_rates = out
+            params, dists, m_rates, t_rates, t_fi_rates = out[:5]
+            print(fl)
+            print(params)
+            print('----')
+            if len(out) == 6:
+                t_rates = out[-1]
 
             mr = np.mean(m_rates[n_stim], axis=2)
             tr = t_rates[n_stim]
@@ -1214,10 +1241,56 @@ def figure_rf_integ(basefolder=bf, gen_panels=None, data=None,
             gpl.clean_plot(aer_ax, 0)
         aer_ax.set_xlabel('distance in common feature')
         aer_ax.set_ylabel('assignment error rate')
+
+    if 'f' in gen_panels:
+        n_rfs, _ = rf_axs.shape
+        inp_pwr = 20
+        f1_units = 200
+        dims = 2
+        
+        f1_rd = None
+        f1_code = spc.Code(inp_pwr, f1_units, dims=dims,
+                           use_ramp=f1_rd)
+        x_pts, y_pts, resp_dx = get_rf_resp_grid(f1_code.rf)
+
+        f2_code = spc.Code(inp_pwr, f1_units, dims=dims)
+        x_pts, y_pts, resp_dy = get_rf_resp_grid(f2_code.rf)
+        neur_inds = (0, 1)
+
+        rf_cmap = 'Blues'
+        for i, ni in enumerate(neur_inds):
+            rf_axs[i, 0].pcolormesh(x_pts, y_pts, resp_dx[..., ni],
+                                    cmap=rf_cmap, rasterized=True)
+            rf_axs[i, 1].pcolormesh(x_pts, y_pts, resp_dy[..., ni],
+                                    cmap=rf_cmap, rasterized=True)
+            gpl.clean_plot(rf_axs[i, 0], 0)                
+            gpl.clean_plot(rf_axs[i, 1], 0)
+            rf_axs[i, 0].set_xticks([0, 1])
+            rf_axs[i, 1].set_xticks([0, 1])
+            rf_axs[i, 0].set_yticks([0, 1])
+            rf_axs[i, 1].set_yticks([0, 1])
+            if i < len(rf_axs) - 1:
+                gpl.clean_plot_bottom(rf_axs[i, 0])
+                gpl.clean_plot_bottom(rf_axs[i, 1])
+            else:
+                rf_axs[i, 0].set_ylabel('spatial frequency')
+                rf_axs[i, 1].set_ylabel('orientation')
+                rf_axs[i, 0].set_xlabel('azimuthal position')
+                rf_axs[i, 1
+                       ].set_xlabel('azimuthal position')
+
     fname = os.path.join(bf, 'fig_integ-py.svg')
     f.savefig(fname, bbox_inches='tight', transparent=True)
     return data
 
+def get_rf_resp_grid(rf, n_pts=100, bounds=(0, 1)):
+    pts = np.linspace(*bounds, n_pts)
+    xy = np.array(list(it.product(pts,
+                                  repeat=2)))
+    resp_dx = rf(xy)
+    resp_dx = np.reshape(resp_dx, (n_pts, n_pts, -1))
+    return pts, pts, resp_dx
+    
 
 def figure6_alt(basefolder=bf, mp1=None, mp2=None, mp3=None, gen_panels=None,
                 data=None, experiment_key='Zhang & Luck 2008'): 

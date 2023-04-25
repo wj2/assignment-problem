@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 import general.rf_models as rfm
 import general.utility as u
+import general.plotting as gpl
 import assignment.overlapping_features as am
 import superposition_codes.codes as spc
 
@@ -64,6 +65,26 @@ class IntegrationModel:
     If you want an example of the usage of the RandomPopsModel, there is one
     in the ff_script.py file.
     """
+
+    def plot_sample(self, n_stim=2, n_egs=100, axs=None, fwid=3, **kwargs):
+        if axs is None:
+            f, axs = plt.subplots(1, 2, figsize=(fwid*2, fwid))
+        ax_corr, ax_ae = axs
+        out = self.random_example(n_stim, make_others=True, n_egs=n_egs, **kwargs)
+        f1, f2, y, y_hat, inp, ys_all, dists = out
+
+        err_mask = np.argmin(dists, axis=1) == 0
+
+        corr_eg_ind = np.where(err_mask)[0][0]
+        ae_eg_ind = np.where(~err_mask)[0][0]
+
+        rfm.visualize_random_rf_responses(y_hat[corr_eg_ind, 0], y[corr_eg_ind, 0],
+                                          ax=ax_corr)
+        rfm.visualize_random_rf_responses(y_hat[ae_eg_ind, 0], y[ae_eg_ind, 0],
+                                          ax=ax_ae)
+
+        gpl.clean_plot(ax_corr, 0, horiz=False)
+        gpl.clean_plot(ax_ae, 1, horiz=False)
 
     def _generate_input(self, n_gen, n_stim=1, set_dists=None):
         inp = np.zeros((len(self.input_distributions), n_stim, n_gen))
@@ -708,6 +729,7 @@ class RandomPopsModel(IntegrationModel):
         model=sklm.Ridge,
         hu_units=None,
         use_early_stopping=True,
+        act_func='tanh',
         n_val=10000,
         no_integ=False,
         patience=5,
@@ -729,6 +751,7 @@ class RandomPopsModel(IntegrationModel):
             integ.shape[1],
             recon.shape[1],
             no_output=True,
+            act_func=act_func,
             **kwargs
         )
         m_f.compile(loss=loss, loss_weights=(1, loss_ratio))

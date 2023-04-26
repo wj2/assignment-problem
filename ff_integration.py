@@ -66,21 +66,39 @@ class IntegrationModel:
     in the ff_script.py file.
     """
 
+    def plot_integ_rf(self, integ_ind, n_grid=20, ax=None, fwid=3,
+                      vis_dims=(0, 1, 2)):
+        pts = np.array(
+            list(it.product(np.linspace(0, 1, n_grid), repeat=len(vis_dims)))
+        )
+        stims = np.expand_dims(pts, 0)
+        stims = np.swapaxes(stims, 1, 2)
+        out = self.get_resp(stims, self.resp_integ, add_noise=False)
+        print(out.shape)
+        resps = out[:, integ_ind]
+        print(resps.shape, pts.shape)
+        rfm.visualize_random_rf_responses(resps, pts, vis_dims=vis_dims, ax=ax)
+
     def plot_sample(self, n_stim=2, n_egs=100, axs=None, fwid=3, **kwargs):
         if axs is None:
-            f, axs = plt.subplots(1, 2, figsize=(fwid*2, fwid))
-        ax_corr, ax_ae = axs
+            f, axs = plt.subplots(2, 2, figsize=(fwid*2, fwid*2))
+        ((ax_corr_templ, ax_ae_templ), (ax_corr, ax_ae)) = axs
         out = self.random_example(n_stim, make_others=True, n_egs=n_egs, **kwargs)
         f1, f2, y, y_hat, inp, ys_all, dists = out
+        y_hat = y_hat.numpy()
 
         err_mask = np.argmin(dists, axis=1) == 0
 
         corr_eg_ind = np.where(err_mask)[0][0]
         ae_eg_ind = np.where(~err_mask)[0][0]
 
-        rfm.visualize_random_rf_responses(y_hat[corr_eg_ind, 0], y[corr_eg_ind, 0],
+        rfm.visualize_random_rf_responses(y[corr_eg_ind], self.ms_out,
+                                          ax=ax_corr_templ)
+        rfm.visualize_random_rf_responses(y[ae_eg_ind], self.ms_out, 
+                                          ax=ax_ae_templ)
+        rfm.visualize_random_rf_responses(y_hat[corr_eg_ind], self.ms_out,
                                           ax=ax_corr)
-        rfm.visualize_random_rf_responses(y_hat[ae_eg_ind, 0], y[ae_eg_ind, 0],
+        rfm.visualize_random_rf_responses(y_hat[ae_eg_ind], self.ms_out, 
                                           ax=ax_ae)
 
         gpl.clean_plot(ax_corr, 0, horiz=False)
@@ -196,24 +214,26 @@ class IntegrationModel:
         topogriphy=False,
     ):
         out = self._generate_input_output_pairs(
-            n_egs, n_stim, ret_indiv=True, set_dists=set_dists, noise_mag=noise_mag
+            n_egs, n_stim, ret_indiv=True, set_dists=set_dists,
+            inp_noise_mag=noise_mag
         )
-        x, y, inp, f1, f2 = out
+        x, integ, y, stim, f1, f2 = out
         y_hat = self.model(x)
+        print(y.shape, y_hat.shape)
         if topogriphy:
             f1 = np.reshape(f1, (self.f1_units,) * len(self.f1_inds))
             f2 = np.reshape(f2, (self.f2_units,) * len(self.f2_inds))
             out_shape = (self.out_units,) * len(self.recon_inds)
             y = np.reshape(y, out_shape)
         if make_others:
-            ys_all = self._make_alternate_outputs(inp)
-            dists = dist_func(np.expand_dims(y_hat, 0), ys_all)
+            stim_all, ys_all = self._make_alternate_outputs(stim)
+            dists = dist_func(np.expand_dims(y_hat, 1), ys_all)
             if topogriphy:
                 ysa_shape = (ys_all.shape[0],) + out_shape
                 ys_all = np.reshape(ys_all, ysa_shape)
-            out = f1, f2, y, y_hat, inp, ys_all, dists
+            out = f1, f2, y, y_hat, stim, ys_all, dists
         else:
-            out = f1, f2, y, y_hat, inp
+            out = f1, f2, y, y_hat, stim
         return out
 
     def _get_min_pair_distances(self, ps, per_feature=True):
@@ -674,6 +694,7 @@ class RandomPopsModel(IntegrationModel):
         n_val=10000,
         no_integ=False,
         patience=5,
+        act_func='relu',
         **kwargs
     ):
         out = self._generate_input_output_pairs(n_samples, n_stim, ret_indiv=True)
@@ -691,7 +712,8 @@ class RandomPopsModel(IntegrationModel):
         else:
             hu_units = hu_units + layers
         m_int, m_out, m_f = self._construct_network(
-            inp.shape[1], hu_units, 0, recon.shape[1], **kwargs
+            inp.shape[1], hu_units, 0, recon.shape[1], act_func=act_func,
+            **kwargs
         )
 
         if use_early_stopping:

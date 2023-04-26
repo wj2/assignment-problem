@@ -34,6 +34,7 @@ def create_parser():
     parser.add_argument('--n_stim', default=(2,), type=int,
                         nargs='+')
     parser.add_argument('--input_snr', default=np.sqrt(20), type=float)
+    parser.add_argument('--input2_snr', default=None, type=float)
     parser.add_argument('--no_integ', default=False, action='store_true')
     parser.add_argument('--n_reps', default=10, type=int)
     parser.add_argument('--f1_ramp_tuning', default=None, nargs='+',
@@ -89,6 +90,7 @@ if __name__ == '__main__':
                                hu_units=args.hidden_units,
                                n_samples=args.n_samples,
                                inp_pwr=args.input_snr**2,
+                               inp2_pwr=args.input2_snr**2,
                                f1_rd=args.f1_ramp_tuning,
                                f2_rd=args.f2_ramp_tuning,
                                no_integ=args.no_integ,

@@ -6,6 +6,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import functools as ft
 import matplotlib.pyplot as plt
+import pickle
 
 import general.rf_models as rfm
 import general.utility as u
@@ -44,6 +45,33 @@ def quantify_ae_rate(m, dists=None, n_samps=100, n_stim=2, dist_feat=0):
     return out_ae, out_distortion
 
 
+def plot_ae_curves(fl, label='', folder='assignment/ff_models/{}', color=None,
+                   plot_minimal_ae=True, ax=None, n_stim=2, print_params=False):
+    if ax is None:
+        f, ax = plt.subplots(1, 1)
+    out = pickle.load(open(folder.format(fl), 'rb'))
+    params, dists, m_rates, t_rates, t_fi_rates = out[:5]
+    if print_params:
+        print(fl)
+        print(params)
+        print('----')
+    if len(out) == 6:
+        t_rates = out[-1]
+
+    mr = np.mean(m_rates[n_stim], axis=2)
+    tr = t_rates[n_stim]
+
+    if plot_minimal_ae:
+        ax.plot(dists, tr, 'k', linestyle='dashed',
+                label='minimal assignment error rate')
+
+    l = ax.plot(dists, mr[0], linewidth=1, color=color,
+                label=label)
+    ax.plot(dists, mr[1:].T, linewidth=1, color=l[0].get_color())
+    ax.legend(frameon=False)
+    gpl.clean_plot(ax, 0)
+
+
 class IntegrationModel:
     """
     This is an abstract class that provides methods common to the following
@@ -67,16 +95,19 @@ class IntegrationModel:
     """
 
     def plot_integ_rf(self, integ_ind, n_grid=20, ax=None, fwid=3,
-                      vis_dims=(0, 1, 2)):
+                      vis_dims=(0, 1, 2), target_integ=False):
         pts = np.array(
             list(it.product(np.linspace(0, 1, n_grid), repeat=len(vis_dims)))
         )
         stims = np.expand_dims(pts, 0)
         stims = np.swapaxes(stims, 1, 2)
-        out = self.get_resp(stims, self.resp_integ, add_noise=False)
-        print(out.shape)
+        if target_integ:
+            out = self.get_resp(stims, self.resp_integ, add_noise=False)
+        else:
+            stims = np.swapaxes(stims, 0, 1)
+            inp = self.get_input_rep(stims, no_noise=True)
+            out = self.get_integ_rep(inp).numpy()
         resps = out[:, integ_ind]
-        print(resps.shape, pts.shape)
         rfm.visualize_random_rf_responses(resps, pts, vis_dims=vis_dims, ax=ax)
 
     def plot_sample(self, n_stim=2, n_egs=100, axs=None, fwid=3, **kwargs):
@@ -165,18 +196,7 @@ class IntegrationModel:
     def generate_input_output_pairs(self, *args, **kwargs):
         return self._generate_input_output_pairs(*args, **kwargs)
 
-    def _generate_input_output_pairs(
-        self,
-        n_gen,
-        n_stim,
-        ret_indiv=False,
-        inp_noise_mag=0,
-        set_dists=None,
-        no_noise=False,
-        ret_noiseless=False,
-    ):
-        n_gen = int(n_gen)
-        inp = self._generate_input(n_gen, n_stim, set_dists=set_dists)
+    def get_input_rep(self, inp, no_noise=False, inp_noise_mag=0, ret_indiv=False):
         f1, f2, r = self._section_input(inp)
         f1, f2 = self._add_noise((f1, f2), inp_noise_mag)
 
@@ -190,11 +210,35 @@ class IntegrationModel:
         else:
             use_r1 = resp1_i_noisy
             use_r2 = resp2_i_noisy
+        total_inp = np.concatenate((use_r1, use_r2), axis=1)
+        if ret_indiv:
+            out = (total_inp, resp1_i, resp1_i_noisy, resp2_i, resp2_i_noisy)
+        else:
+            out = total_inp
+        return out
+
+    def _generate_input_output_pairs(
+        self,
+        n_gen,
+        n_stim,
+        ret_indiv=False,
+        inp_noise_mag=0,
+        set_dists=None,
+        no_noise=False,
+        ret_noiseless=False,
+    ):
+        n_gen = int(n_gen)
+        inp = self._generate_input(n_gen, n_stim, set_dists=set_dists)
+        out = self.get_input_rep(inp, no_noise=no_noise,
+                                 inp_noise_mag=inp_noise_mag,
+                                 ret_indiv=True)
+        total_inp, resp1_i, resp1_i_noisy, resp2_i, resp2_i_noisy = out
 
         inp_int = np.swapaxes(inp, 0, 1)
         integ_targ = self.get_resp(inp_int, self.resp_integ, add_noise=False)
+
+        _, _, r = self._section_input(inp)
         recon_targ = self.get_resp(r, self.resp_out, add_noise=False)
-        total_inp = np.concatenate((use_r1, use_r2), axis=1)
         if ret_indiv:
             out = total_inp, integ_targ, recon_targ, inp, resp1_i, resp2_i
             if ret_noiseless:
@@ -404,6 +448,7 @@ class IntegrationModel:
         activity_regularizer=None,  # regularizers.L2(.001),
         noise=0,
         no_output=False,
+        train_integ=False,
         **kwargs
     ):
         outs = []
@@ -431,7 +476,8 @@ class IntegrationModel:
                 **kwargs
             )(x)
             model_int = keras.Model(inputs=inputs, outputs=x)
-            outs.append(x)
+            if train_integ:
+                outs.append(x)
         else:
             model_int = None
         if out_units > 0:
@@ -464,6 +510,7 @@ class RandomPopsModel(IntegrationModel):
         hu_units=(500,),
         noise=1,
         inp_pwr=20,
+        inp2_pwr=None,
         pop_func="random",
         connectivity_gen="learn",
         f1_rd=None,
@@ -532,7 +579,11 @@ class RandomPopsModel(IntegrationModel):
 
         """
         self.rng = np.random.default_rng()
-        self.inp_pwr = inp_pwr
+        self.inp1_pwr = inp_pwr
+        if inp2_pwr is None:
+            self.inp2_pwr = inp_pwr
+        else:
+            self.inp2_pwr = inp2_pwr
         self.f1_inds = np.array(f1_inds, dtype=int)
         self.f2_inds = np.array(f2_inds, dtype=int)
         self.recon_inds = np.array(recon_inds, dtype=int)
@@ -543,7 +594,7 @@ class RandomPopsModel(IntegrationModel):
         self.f1_units = f1_units
         f1_distributions = self.input_distributions[self.f1_inds]
         f1_code = spc.Code(
-            inp_pwr,
+            self.inp1_pwr,
             f1_units,
             dims=len(f1_distributions),
             sigma_n=noise,
@@ -558,7 +609,7 @@ class RandomPopsModel(IntegrationModel):
         self.f2_units = f2_units
         f2_distributions = self.input_distributions[self.f2_inds]
         f2_code = spc.Code(
-            inp_pwr,
+            self.inp2_pwr,
             f2_units,
             dims=len(f2_distributions),
             sigma_n=noise,
@@ -572,7 +623,7 @@ class RandomPopsModel(IntegrationModel):
 
         self.integ_units = integ_units
         integ_code = spc.Code(
-            2 * inp_pwr,
+            self.inp1_pwr + self.inp2_pwr,
             integ_units,
             dims=len(input_distributions),
             sigma_n=noise,
@@ -586,7 +637,7 @@ class RandomPopsModel(IntegrationModel):
         recon_distributions = self.input_distributions[self.recon_inds]
         self.out_units = out_units
         out_code = spc.Code(
-            inp_pwr,
+            (self.inp1_pwr + self.inp2_pwr) / 2,
             out_units,
             dims=len(recon_distributions),
             sigma_n=noise,
@@ -695,6 +746,7 @@ class RandomPopsModel(IntegrationModel):
         no_integ=False,
         patience=5,
         act_func='relu',
+        loss_ratio=1,
         **kwargs
     ):
         out = self._generate_input_output_pairs(n_samples, n_stim, ret_indiv=True)
@@ -703,17 +755,16 @@ class RandomPopsModel(IntegrationModel):
         out = self._generate_input_output_pairs(n_val, n_stim, ret_indiv=True)
         val_inp, _, val_recon, _, _, _ = out
 
-        if no_integ:
-            layers = ()
-        else:
-            layers = (integ.shape[1],)
         if hu_units is None:
-            hu_units = layers
+            hu_units = ()
+
+        if no_integ:
+            integ_units = 0
         else:
-            hu_units = hu_units + layers
+            integ_units = integ.shape[1]
         m_int, m_out, m_f = self._construct_network(
-            inp.shape[1], hu_units, 0, recon.shape[1], act_func=act_func,
-            **kwargs
+            inp.shape[1], hu_units, integ_units, recon.shape[1], act_func=act_func,
+            train_integ=False, **kwargs
         )
 
         if use_early_stopping:
@@ -726,7 +777,6 @@ class RandomPopsModel(IntegrationModel):
             curr_cb = kwargs.get("callbacks", [])
             curr_cb.append(cb)
             kwargs["callbacks"] = curr_cb
-
         m_f.compile(loss=loss)
         m_f.fit(
             inp,
@@ -767,13 +817,19 @@ class RandomPopsModel(IntegrationModel):
         if hu_units is None:
             hu_units = ()
 
+        if no_integ:
+            integ_units = 0
+        else:
+            integ_units = integ.shape[1]
+
         m_int, m_out, m_f = self._construct_network(
             inp.shape[1],
             hu_units,
-            integ.shape[1],
+            integ_units,
             recon.shape[1],
             no_output=True,
             act_func=act_func,
+            train_integ=True,
             **kwargs
         )
         m_f.compile(loss=loss, loss_weights=(1, loss_ratio))

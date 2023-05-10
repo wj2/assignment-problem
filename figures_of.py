@@ -965,9 +965,9 @@ def figure_fi(basefolder=bf, gen_panels=None, data=None):
         num_regions = np.nanargmin(min_regions, axis=0)
         plot_map = np.array(region_list, dtype=float)[num_regions]
 
-        # NO LONGER THRESHOLDING
-        # total_thresh = 1 / 2
-        # plot_map[np.nanmin(min_regions, axis=0) > total_thresh] = np.nan 
+        total_thresh = .5
+        plot_map[np.nanmin(min_regions, axis=0) > total_thresh] = np.nan
+        data["extra_map"] = np.any(np.isinf(min_regions), axis=0)
         cmap_name = "Blues"
         cmap = plt.get_cmap(cmap_name)
         possibles = np.unique(plot_map)

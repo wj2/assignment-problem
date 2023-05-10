@@ -146,7 +146,7 @@ def explore_mse_tradeoff_parallel(
 ):
     arr_shape = (len(n_units), len(total_dims), len(overlaps), len(total_pwrs))
     totals = {nr: np.zeros(arr_shape) for nr in n_regions}
-    distorts = {nr: np.zeros(arr_shape) for nr in n_regions}
+    distorts = {nr: np.zeros(arr_shape, dtype=object) for nr in n_regions}
     ae_rates = {nr: np.zeros_like(distorts[nr]) for nr in n_regions}
     mis_prob = {nr: np.zeros(arr_shape, dtype=object) for nr in n_regions}
     mis_err = {nr: np.zeros(arr_shape, dtype=object) for nr in n_regions}
